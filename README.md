@@ -14,7 +14,7 @@ ROS2 workspace made for PX4 Multi-Vehicle Simulation in Gazebo.
     - source /opt/ros/humble/setup.bash
     - rosdep install -i --from-path src --rosdistro humble -y
 1. Build ROS2 workspace:
-    - colcon build --packages-up-to ros2-droneswarm-sim-ws
+    - colcon build --packages-up-to droneswarm
 
 # How to Run / Launch
 1. Open a new terminal (never run/launch in the same terminal you build the workspace)
