@@ -2,19 +2,39 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
+# TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
-# TODO se https://docs.px4.io/v1.12/en/simulation/gazebo.html#set-world-location 
-# TODO se https://docs.px4.io/main/en/sim_gazebo_gz/#set-custom-takeoff-location 
-# TODO det ser ud til gps koordinater er defineret i maps filen: https://github.com/PX4/PX4-gazebo-models/blob/main/worlds/baylands.sdf (i bunden af filen)
+# se https://docs.px4.io/v1.12/en/simulation/gazebo.html#set-world-location 
+# se https://docs.px4.io/main/en/sim_gazebo_gz/#set-custom-takeoff-location 
+# det ser ud til gps koordinater er defineret i maps filen: https://github.com/PX4/PX4-gazebo-models/blob/main/worlds/baylands.sdf (i bunden af filen)
     # det kan jeg eventuel bruge til at lave et polygon i mission planner!
 
 # see https://github.dev/PX4/px4_msgs for message definitions
 # TrajectorySetpoint is for setpoints in meters
-# TODO PositionSetpoint seems to be setpoint for gps coordinates ????
+# PositionSetpoint seems to be setpoint for gps coordinates ????
 
+# https://docs.px4.io/main/en/msg_docs/ 
 
 
 CONTROL_LOOP_DT = 0.1  # seconds
+
+
+
+
+def main_loop_content(self):
+    # TODO 
+
+
+
+# TODO  Overvej om main_loop_content skal være i sin egen fil. og om TsunamiOnline måske skal have et andet navn så ?
+# Måske skal TsunamiOnline --> PX4OffboardController 
+# og så skal main_loop_content hedde tsunami_online() ?
+
+
+
+
+
+
 
 class TsunamiOnline(Node):
 
@@ -35,12 +55,24 @@ class TsunamiOnline(Node):
             depth=1  
         )
         # Create publishers
-        # TODO
+        self.offboard_control_mode_publisher = self.create_publisher(
+            OffboardControlMode, self.ns + '/fmu/in/offboard_control_mode', qos_profile)
+        self.trajectory_setpoint_publisher = self.create_publisher(
+            TrajectorySetpoint, self.ns + '/fmu/in/trajectory_setpoint', qos_profile)
+        self.vehicle_command_publisher = self.create_publisher(
+            VehicleCommand, self.ns + '/fmu/in/vehicle_command', qos_profile)
         # Create subscribers
-        # TODO
+        self.vehicle_local_position_subscriber = self.create_subscription(
+            VehicleLocalPosition, self.ns + '/fmu/out/vehicle_local_position_v1', self.vehicle_local_position_callback, qos_profile)
+        self.vehicle_status_subscriber = self.create_subscription(
+            VehicleStatus, self.ns + '/fmu/out/vehicle_status_v1', self.vehicle_status_callback, qos_profile)
+        # TODO mangler at få global position (gps). overvej om vi behøver vehicle_local_position_v1 længere så
 
         # Initialize PX4 specific variables
-        # TODO
+        self.one_sec_loop_count = int(1.0 / CONTROL_LOOP_DT)
+        self.offboard_startup_counter = 0
+        self.vehicle_local_position = VehicleLocalPosition()
+        self.vehicle_status = VehicleStatus()
 
         ##################### GENERIC #####################
 
@@ -49,9 +81,10 @@ class TsunamiOnline(Node):
             traversal_order_gps = pickle.load(fp)
 
         # Create a timer to publish control commands
-        # TODO
+        self.timer = self.create_timer(CONTROL_LOOP_DT, self.controll_loop_callback)
 
         # Initialize generic variables
+        # ...
 
 
     ##################### PX4 SPECIFIC METHODS #####################
@@ -120,6 +153,9 @@ class TsunamiOnline(Node):
     def controll_loop_callback(self) -> None:
 
         # TODO
+
+
+        main_loop_content(self)
 
 
 
