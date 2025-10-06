@@ -26,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'our_offboard_control = droneswarm.our_offboard_control:main',
+            'px4_controller = droneswarm.px4_controller:main',
         ],
     },
 )

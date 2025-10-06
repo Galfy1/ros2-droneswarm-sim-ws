@@ -2,10 +2,11 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, VehicleGlobalPosition, HomePosition
+import os
 
 
-from map_projection import MapProjectionImpl
-from tsunami_online import tsunami_online_loop
+from .map_projection import MapProjectionImpl
+from .tsunami_online import tsunami_online_loop
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -22,7 +23,7 @@ from tsunami_online import tsunami_online_loop
 
 
 
-CONTROL_LOOP_DT = 0.1  # seconds
+CONTROL_LOOP_DT = 0.05  # seconds
 HOME_POS_TOLERANCE = 1e-5  # degrees
 
 
@@ -63,7 +64,9 @@ class PX4_Controller(Node):
             # NOTE: /px4_1/fmu/out/vehicle_gps_position also exist. for more info: https://docs.px4.io/main/en/msg_docs/ 
 
         # Read traversal order and home position from file (created in offline phase)
-        with open('traversal_order_gps.pkl', 'rb') as fp:
+        this_file_dir = os.path.dirname(os.path.realpath(__file__))
+        pkl_path = os.path.join(this_file_dir, 'traversal_order_gps.pkl')
+        with open(pkl_path, 'rb') as fp:
             data_loaded = pickle.load(fp)
         self.home_pos_gps_from_offline = data_loaded['home_pos_gps']
         self.traversal_order_gps = data_loaded['traversal_order_gps']
@@ -172,12 +175,25 @@ class PX4_Controller(Node):
 
     def controll_loop_callback(self) -> None:
 
-        # TODO
+        self.publish_offboard_control_heartbeat_signal() # must be called at least at 2Hz
 
-        # husk at tjek at map_projection_initialized er true inden du bruger self.map_projection
+        # Wait a second before starting offboard mode and arming (required by PX4)
+        if self.offboard_startup_counter == self.one_sec_loop_count:
+            self.engage_offboard_mode()
+            self.arm()
+            self.offboard_startup_counter = 9999  # Prevent re-entering this if statement
+        if self.offboard_startup_counter < self.one_sec_loop_count:
+            self.offboard_startup_counter += 1
+
+        # If PX4 is in offboard mode and map projection is initialized, run the main control loop
+        if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:
+            tsunami_online_loop(self)
+            
 
 
-        tsunami_online_loop(self)
+
+
+        
 
 
 
