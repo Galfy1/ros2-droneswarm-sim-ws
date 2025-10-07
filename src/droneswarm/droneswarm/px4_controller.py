@@ -3,6 +3,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, VehicleGlobalPosition, HomePosition
 import os
+import pickle
 
 
 from .map_projection import MapProjectionImpl
@@ -64,9 +65,11 @@ class PX4_Controller(Node):
             # NOTE: /px4_1/fmu/out/vehicle_gps_position also exist. for more info: https://docs.px4.io/main/en/msg_docs/ 
 
         # Read traversal order and home position from file (created in offline phase)
-        pkl_path = os.path.join(os.path.join('..','..','share', package_name, 'our_data'), 'traversal_order_gps.pkl')
+        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'traversal_order_gps.pkl')
         with open(pkl_path, 'rb') as fp:
-            data_loaded = pickle.load(fp)
+            data_loaded = pickle.load(fp) 
+        # for item in os.listdir(dir_path):
+        #     self.get_logger().info(f"Found item in parent dir: {item}")
         self.home_pos_gps_from_offline = data_loaded['home_pos_gps']
         self.traversal_order_gps = data_loaded['traversal_order_gps']
         
