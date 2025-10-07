@@ -6,7 +6,7 @@ ROS2 workspace made for PX4 Multi-Vehicle Simulation in Gazebo.
 
 # Get started
 1. Clone repo:
-    - git clone {this repo}
+    - git clone --recursive {this repo} 
     - cd ros2-droneswarm-sim-ws
 1. Install dependencies (stand in /ros2-droneswarm-sim-ws):
     - sudo apt update
@@ -16,6 +16,8 @@ ROS2 workspace made for PX4 Multi-Vehicle Simulation in Gazebo.
 1. Build ROS2 workspace (stand in /ros2-droneswarm-sim-ws):
     - source /opt/ros/humble/setup.bash 
     - colcon build --packages-up-to droneswarm
+  
+NOTE: If rosdep... outputs an error, you might need to call "sudo rosdep init" and try again
 
 # How to Run / Launch
 1. Open a new terminal (never run/launch in the same terminal you build the workspace)
