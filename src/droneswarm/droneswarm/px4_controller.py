@@ -21,11 +21,13 @@ from .tsunami_online import tsunami_online_loop
 # TrajectorySetpoint is for setpoints in meters
 # PositionSetpoint seems to be setpoint for gps coordinates ????
 
+# ITS BETTER TO JUST LOOK IN THE ACTUEL px4_msgs PACKAGE IN THE WORKSPACE, THEN YOU KNOW ITS THE ONE ACTUALLY BEING USED
+
 package_name = 'droneswarm'
 
 
 CONTROL_LOOP_DT = 0.05  # seconds
-HOME_POS_TOLERANCE = 1e-5  # degrees
+HOME_POS_TOLERANCE = 1e-4  # degrees # TODO ADJUST
 
 
 class PX4_Controller(Node):
@@ -54,8 +56,8 @@ class PX4_Controller(Node):
             VehicleCommand, self.ns + '/fmu/in/vehicle_command', qos_profile)
 
         # Create subscribers
-        # self.vehicle_local_position_subscriber = self.create_subscription(
-        #     VehicleLocalPosition, self.ns + '/fmu/out/vehicle_local_position_v1', self.vehicle_local_position_callback, qos_profile)
+        self.vehicle_local_position_subscriber = self.create_subscription(
+            VehicleLocalPosition, self.ns + '/fmu/out/vehicle_local_position_v1', self.vehicle_local_position_callback, qos_profile)
         self.vehicle_status_subscriber = self.create_subscription(
             VehicleStatus, self.ns + '/fmu/out/vehicle_status_v1', self.vehicle_status_callback, qos_profile)
         self.vehicle_global_position_subscriber = self.create_subscription(
@@ -86,12 +88,13 @@ class PX4_Controller(Node):
 
     ##################### METHODS #####################
 
-    # def vehicle_local_position_callback(self, vehicle_local_position):
-    #     # TODO 
+    def vehicle_local_position_callback(self, vehicle_local_position):
+        if vehicle_local_position.z_valid:
+            self.vehicle_local_z = vehicle_local_position.z
 
     def home_position_callback(self, home_position): # https://docs.px4.io/main/en/msg_docs/HomePosition.html 
         # Initialize map projection using home position from PX4.
-        if home_position.valid_hpos and home_position.valid_vpos and not self.map_projection_initialized:
+        if home_position.valid_hpos and not self.map_projection_initialized:
             # Check if home position matches the one from offline phase (within a small tolerance)
             if not (abs(home_position.lat - self.home_pos_gps_from_offline[0]) < HOME_POS_TOLERANCE and abs(home_position.lon - self.home_pos_gps_from_offline[1]) < HOME_POS_TOLERANCE):
                 raise ValueError(f"Home position from PX4 does not match the one from offline phase (within a tolerance of {HOME_POS_TOLERANCE} degrees).")
