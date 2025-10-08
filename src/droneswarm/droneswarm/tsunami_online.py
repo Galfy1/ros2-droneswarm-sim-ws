@@ -12,6 +12,7 @@ test_longitude = -121.998055
 # ADJUSTABLE PARAMETERS
 OPERATING_ALTITUDE = -10.0  # meters
 OPERATING_VELOCITY = 1.0 # m/s
+ENABLE_YAW_TURNING = True  # TODO 
 
 
 
@@ -41,13 +42,25 @@ def tsunami_online_loop(self):
 
     #self.publish_position_setpoint_global(test_latitude, test_longitude, OPERATING_ALTITUDE, OPERATING_VELOCITY)
 
-
-    self.publish_position_setpoint_global(*self.traversal_order_gps[self.traversal_index], OPERATING_ALTITUDE, OPERATING_VELOCITY)
-
-    # Check if we are within 1 meter of the target waypoint (i can get global pos from self.vehicle_global_position. and i dont need to check self.vehicle_local.xy_valid and self.vehicle_local.z_valid:)
+    # get current target waypoint
     lat_target, lon_target = self.traversal_order_gps[self.traversal_index]
-    self.get_logger().info(f"Flying to {lat_target}, {lon_target}")
-    self.get_logger().info(f"Current GPS: {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}")
+
+
+    yaw_rad = 0.0
+    # if ENABLE_YAW_TURNING:
+    #     # calculate yaw to next waypoint
+    #     d_lon = lon_target - self.vehicle_global_position.lon
+    #     y = np.sin(d_lon) * np.cos(lat_target)
+    #     x = np.cos(self.vehicle_global_position.lat) * np.sin(lat_target) - np.sin(self.vehicle_global_position.lat) * np.cos(lat_target) * np.cos(d_lon)
+    #     yaw_rad = np.arctan2(y, x)
+
+
+
+    self.publish_position_setpoint_global(*self.traversal_order_gps[self.traversal_index], OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
+
+    # Check if we are within 1 meter of the target waypoint
+    # self.get_logger().info(f"Flying to {lat_target}, {lon_target}")
+    # self.get_logger().info(f"Current GPS: {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}")
     distance = haversine((self.vehicle_global_position.lat, self.vehicle_global_position.lon), (lat_target, lon_target), unit=Unit.METERS)
     #self.get_logger().info(f"Distance to waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)}: {distance:.2f} meters")
     if distance < 1.0:  # within 1 meter

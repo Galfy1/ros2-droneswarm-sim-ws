@@ -153,19 +153,19 @@ class PX4_Controller(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.offboard_control_mode_publisher.publish(msg)
 
-    def publish_position_setpoint_local(self, x: float, y: float, z: float, velocity: float = 1.0):
+    def publish_position_setpoint_local(self, x: float, y: float, z: float, velocity: float = 1.0, yaw: float = 0.0):
         # Publish the trajectory setpoint.
         msg = TrajectorySetpoint()
         msg.position = [x, y, z]
         #msg.velocity = [velocity, velocity, velocity] #DOES NOT WORK FOR WHATEVER REASON
-        #msg.yaw = 1.57079  # (90 degree)
+        msg.yaw = yaw
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
         #self.get_logger().info(f"Publishing position setpoints {[x, y, z]}")
 
-    def publish_position_setpoint_global(self, lat: float, lon: float, alt: float, velocity: float = 1.0):
+    def publish_position_setpoint_global(self, lat: float, lon: float, alt: float, velocity: float = 1.0, yaw: float = 0.0):
         x, y = self.map_projection.global_to_local(lat, lon) # px does not take global setpoints in python. so we convert to local
-        self.publish_position_setpoint_local(x, y, alt, velocity)
+        self.publish_position_setpoint_local(x, y, alt, velocity, yaw=yaw)
 
     def publish_vehicle_command(self, command, **params) -> None:
         # Publish a vehicle command.
