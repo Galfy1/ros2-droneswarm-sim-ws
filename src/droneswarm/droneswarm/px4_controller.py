@@ -95,7 +95,7 @@ class PX4_Controller(Node):
 
     def vehicle_local_position_callback(self, vehicle_local_position):
         if vehicle_local_position.xy_valid and vehicle_local_position.z_valid:
-            self.get_logger().info(f"Local Position: {vehicle_local_position.x}, {vehicle_local_position.y}, {vehicle_local_position.z}")
+            #self.get_logger().info(f"Local Position: {vehicle_local_position.x}, {vehicle_local_position.y}, {vehicle_local_position.z}")
             self.vehicle_local_position = vehicle_local_position
 
     def home_position_callback(self, home_position): # https://docs.px4.io/main/en/msg_docs/HomePosition.html 
@@ -143,9 +143,10 @@ class PX4_Controller(Node):
 
     def publish_offboard_control_heartbeat_signal(self):
         # Publish the offboard control mode.
+        # see: https://docs.px4.io/main/en/flight_modes/offboard.html 
         msg = OffboardControlMode()
-        msg.position = False # yes this needs to be false for velocity control (we can still send position setpoints). its weird yes. see: https://docs.px4.io/main/en/flight_modes/offboard.html 
-        msg.velocity = True
+        msg.position = True 
+        msg.velocity = False
         msg.acceleration = False
         msg.attitude = False
         msg.body_rate = False
@@ -156,7 +157,7 @@ class PX4_Controller(Node):
         # Publish the trajectory setpoint.
         msg = TrajectorySetpoint()
         msg.position = [x, y, z]
-        #msg.velocity = [velocity, velocity, velocity]
+        #msg.velocity = [velocity, velocity, velocity] #DOES NOT WORK FOR WHATEVER REASON
         #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
