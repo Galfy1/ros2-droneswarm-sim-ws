@@ -7,7 +7,7 @@ import pickle
 
 
 from .map_projection import MapProjectionImpl
-from .tsunami_online import tsunami_online_loop
+from .tsunami_online import tsunami_online_init, tsunami_online_loop 
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -80,17 +80,23 @@ class PX4_Controller(Node):
         self.offboard_startup_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
+        self.vehicle_global_position = VehicleGlobalPosition()
+        self.home_pos = HomePosition()
         self.map_projection_initialized = False
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(CONTROL_LOOP_DT, self.controll_loop_callback)
 
+        # Init Tsunami
+        tsunami_online_init(self)
+
 
     ##################### METHODS #####################
 
     def vehicle_local_position_callback(self, vehicle_local_position):
-        if vehicle_local_position.z_valid:
-            self.vehicle_local_z = vehicle_local_position.z
+        if vehicle_local_position.xy_valid and vehicle_local_position.z_valid:
+            self.get_logger().info(f"Local Position: {vehicle_local_position.x}, {vehicle_local_position.y}, {vehicle_local_position.z}")
+            self.vehicle_local_position = vehicle_local_position
 
     def home_position_callback(self, home_position): # https://docs.px4.io/main/en/msg_docs/HomePosition.html 
         # Initialize map projection using home position from PX4.
@@ -138,22 +144,27 @@ class PX4_Controller(Node):
     def publish_offboard_control_heartbeat_signal(self):
         # Publish the offboard control mode.
         msg = OffboardControlMode()
-        msg.position = True
-        msg.velocity = False
+        msg.position = False # yes this needs to be false for velocity control (we can still send position setpoints). its weird yes. see: https://docs.px4.io/main/en/flight_modes/offboard.html 
+        msg.velocity = True
         msg.acceleration = False
         msg.attitude = False
         msg.body_rate = False
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.offboard_control_mode_publisher.publish(msg)
 
-    def publish_position_setpoint(self, x: float, y: float, z: float):
+    def publish_position_setpoint_local(self, x: float, y: float, z: float, velocity: float = 1.0):
         # Publish the trajectory setpoint.
         msg = TrajectorySetpoint()
         msg.position = [x, y, z]
-        msg.yaw = 1.57079  # (90 degree)
+        #msg.velocity = [velocity, velocity, velocity]
+        #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
         #self.get_logger().info(f"Publishing position setpoints {[x, y, z]}")
+
+    def publish_position_setpoint_global(self, lat: float, lon: float, alt: float, velocity: float = 1.0):
+        x, y = self.map_projection.global_to_local(lat, lon) # px does not take global setpoints in python. so we convert to local
+        self.publish_position_setpoint_local(x, y, alt, velocity)
 
     def publish_vehicle_command(self, command, **params) -> None:
         # Publish a vehicle command.

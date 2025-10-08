@@ -3,8 +3,8 @@ import numpy as np
 # BASED ON https://github.com/Auterion/px4-ros2-interface-lib/blob/396120292cc70014c37646d30fccc2c62a649458/px4_ros2_cpp/src/utils/map_projection_impl.cpp
 
 # Constants
-kRadiusOfEarth = 6378137.0  # meters (WGS84 Earth radius)
-#kRadiusOfEarth = 6371000.0  # meters (usec by the above liked source)
+#kRadiusOfEarth = 6378137.0  # meters (WGS84 Earth radius)
+kRadiusOfEarth = 6371000.0  # meters (usec by the above liked source)
 
 def deg_to_rad(degrees: float) -> float:
     return np.deg2rad(degrees)

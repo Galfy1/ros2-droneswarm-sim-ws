@@ -25,22 +25,22 @@ def generate_launch_description():
                 {'instance_id': 1} # start from 1! not 0!
             ]
         ),
-        Node(
-            package='droneswarm',
-            namespace=namespace,
-            executable='px4_controller',
-            name='drone_2',
-            parameters=[
-                {'instance_id': 2}
-            ]
-        ),
-        Node(
-            package='droneswarm',
-            namespace=namespace,
-            executable='px4_controller',
-            name='drone_3',
-            parameters=[
-                {'instance_id': 3}
-            ]
-        )
+        # Node(
+        #     package='droneswarm',
+        #     namespace=namespace,
+        #     executable='px4_controller',
+        #     name='drone_2',
+        #     parameters=[
+        #         {'instance_id': 2}
+        #     ]
+        # ),
+        # Node(
+        #     package='droneswarm',
+        #     namespace=namespace,
+        #     executable='px4_controller',
+        #     name='drone_3',
+        #     parameters=[
+        #         {'instance_id': 3}
+        #     ]
+        # )
     ])

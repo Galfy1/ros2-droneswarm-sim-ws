@@ -99,6 +99,7 @@ class OffboardControl(Node):
 
     def publish_position_setpoint(self, x: float, y: float, z: float):
         """Publish the trajectory setpoint."""
+        # see https://docs.px4.io/main/en/flight_modes/offboard.html for more info regarding trajectory setpoint
         msg = TrajectorySetpoint()
         msg.position = [x, y, z]
         msg.yaw = 1.57079  # (90 degree)
