@@ -1,4 +1,4 @@
-from haversine import haversine
+from haversine import haversine, Unit
 
 
 
@@ -46,8 +46,10 @@ def tsunami_online_loop(self):
 
     # Check if we are within 1 meter of the target waypoint (i can get global pos from self.vehicle_global_position. and i dont need to check self.vehicle_local.xy_valid and self.vehicle_local.z_valid:)
     lat_target, lon_target = self.traversal_order_gps[self.traversal_index]
-    distance = haversine((self.vehicle_global_position.lat, self.vehicle_global_position.lon), (lat_target, lon_target))
-    self.get_logger().info(f"Distance to waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)}: {distance:.2f} meters")
+    self.get_logger().info(f"Flying to {lat_target}, {lon_target}")
+    self.get_logger().info(f"Current GPS: {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}")
+    distance = haversine((self.vehicle_global_position.lat, self.vehicle_global_position.lon), (lat_target, lon_target), unit=Unit.METERS)
+    #self.get_logger().info(f"Distance to waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)}: {distance:.2f} meters")
     if distance < 1.0:  # within 1 meter
        # self.get_logger().info(f"Reached waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)} at {lat_target}, {lon_target}")
         self.traversal_index += 1
