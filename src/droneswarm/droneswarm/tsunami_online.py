@@ -1,6 +1,8 @@
 from haversine import haversine, Unit
+import numpy as np
 
-
+# See the following for helpfull lat/lon/bearing calculations:
+#    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
 
 # testy:
 test_latitude = 37.412833
@@ -10,10 +12,17 @@ test_longitude = -121.998055
 
 
 # ADJUSTABLE PARAMETERS
-OPERATING_ALTITUDE = -10.0  # meters
+OPERATING_ALTITUDE = -15.0  # meters
 OPERATING_VELOCITY = 1.0 # m/s
-ENABLE_YAW_TURNING = True  # TODO 
+ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
 
+
+def great_circle_bearing(lat1, lon1, lat2, lon2):
+    # (see https://www.movable-type.co.uk/scripts/latlong.html) ("Bearing" is the angle in Lat/Lon language)
+    d_lon = lon2 - lon1
+    term_1 = np.sin(d_lon) * np.cos(lat2)
+    term_2 = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon)
+    return np.arctan2(term_1, term_2)
 
 
 def tsunami_online_init(self):
@@ -21,6 +30,7 @@ def tsunami_online_init(self):
     # self.start_pos_grappeded = False
     self.traversal_index = 0
 
+# TODO vi kan bruge Qgroundcontrol pathen den tegner, til at se hvor dronen rent faktisk flyver hen
 
 def tsunami_online_loop(self):
 
@@ -47,12 +57,9 @@ def tsunami_online_loop(self):
 
 
     yaw_rad = 0.0
-    # if ENABLE_YAW_TURNING:
-    #     # calculate yaw to next waypoint
-    #     d_lon = lon_target - self.vehicle_global_position.lon
-    #     y = np.sin(d_lon) * np.cos(lat_target)
-    #     x = np.cos(self.vehicle_global_position.lat) * np.sin(lat_target) - np.sin(self.vehicle_global_position.lat) * np.cos(lat_target) * np.cos(d_lon)
-    #     yaw_rad = np.arctan2(y, x)
+    if ENABLE_YAW_TURNING:
+        # Calculate yaw to next waypoint using the Great-circle Bearing Formula 
+        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target)
 
 
 
@@ -61,7 +68,7 @@ def tsunami_online_loop(self):
     # Check if we are within 1 meter of the target waypoint
     # self.get_logger().info(f"Flying to {lat_target}, {lon_target}")
     # self.get_logger().info(f"Current GPS: {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}")
-    distance = haversine((self.vehicle_global_position.lat, self.vehicle_global_position.lon), (lat_target, lon_target), unit=Unit.METERS)
+    distance = haversine((self.vehicle_global_position.lat, self.vehicle_global_position.lon), (lat_target, lon_target), unit=Unit.METERS) # haversine is also called "Great-circle Distance Formula"
     #self.get_logger().info(f"Distance to waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)}: {distance:.2f} meters")
     if distance < 1.0:  # within 1 meter
        # self.get_logger().info(f"Reached waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)} at {lat_target}, {lon_target}")
