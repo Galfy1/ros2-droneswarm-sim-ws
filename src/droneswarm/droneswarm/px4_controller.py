@@ -28,6 +28,15 @@ package_name = 'droneswarm'
 
 CONTROL_LOOP_DT = 0.05  # seconds
 HOME_POS_TOLERANCE = 1e-4  # degrees # TODO ADJUST
+REQUEST_ALL_CURRENT_PATHS_TIMEOUT = 0.1 # seconds # TODO ADJUST
+                                        # TODO, vi kan init med max antal drones. hvis den får responses for det antal, så er den færdig.
+                                                # hvis en eller flere droner ikke svarer, så er det timeouten der bestemmer hvornår den er færdig
+                                                #   hvis man ikke får svar fra en drone x antal gange i træk, så decrase antallen af droner i poolen med 1
+                                                                    # kald variablen noget alla drone_pool_count_estimate eller lignende
+                                                #   hvis man får svar fra en drone, så reset tælleren for den drone.
+                                                #   PROBLEM: hvis vi har decreased antallet af droner i pooolen, så kan en drone der kommer online igen have svært ved at komme med igen (fordi vi kun venter på drone_pool_count_estimate svar)
+                                                #      Potential løsning: efter man har fået drone_pool_count_estimate svar, så venter man lige lidt ekstra, så hvis en drone kommer online igen, så kan den nå at være med.
+                                                # Det kræver også hver drone har et unikt ID, så vi kan se hvem svarer
 
 
 class PX4_Controller(Node):
@@ -66,6 +75,13 @@ class PX4_Controller(Node):
             HomePosition, self.ns + '/fmu/out/home_position_v1', self.home_position_callback, qos_profile)
             # NOTE: /px4_1/fmu/out/vehicle_gps_position also exist. for more info: https://docs.px4.io/main/en/msg_docs/ 
 
+        # Create service clients
+        # self.request_all_current_paths_client = self.create_client(None, 'request_all_current_paths', ) # TODO create srv type
+
+
+        # Create service servers
+        
+
         # Read traversal order and home position from file (created in offline phase)
         pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'traversal_order_gps.pkl')
         with open(pkl_path, 'rb') as fp:
@@ -88,7 +104,7 @@ class PX4_Controller(Node):
         self.timer = self.create_timer(CONTROL_LOOP_DT, self.controll_loop_callback)
 
         # Init Tsunami
-        tsunami_online_init(self)
+        tsunami_online_init(self, len(self.traversal_order_gps))
 
 
     ##################### METHODS #####################
@@ -185,6 +201,28 @@ class PX4_Controller(Node):
         msg.from_external = True
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.vehicle_command_publisher.publish(msg)
+
+
+    def request_all_current_paths(self): # TODO service
+        pass
+
+    def receive_all_current_paths_callback(self): 
+        pass
+
+
+
+    def current_path_response(self): # TODO service
+        pass
+
+    def broadcast_visited_waypoint(self): # broadcast = publish topic. its called broadcast for generilization with the tsunami implimentation for real hardware # TODO topic
+        pass
+
+    def visited_waypoint_callback(self): # TODO topic
+        pass
+    
+    # def current_path_incoming_request_callback(self): # DET SKAL VÆRE EN SERVICE I STEDET TODO
+    #     pass
+
 
 
     ##################### MAIN CONTROL LOOP #####################

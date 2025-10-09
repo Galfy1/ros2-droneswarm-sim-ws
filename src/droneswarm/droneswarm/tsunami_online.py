@@ -4,17 +4,25 @@ import numpy as np
 # See the following for helpfull lat/lon/bearing calculations:
 #    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
 
+# TODO skriv i rapport at vores version af Tsunami online er mere distributed (forklar det med at vi ikke har en drone pool..)
+# TODO Fra tsunami paper "Notably, due to the properties of the waypoint grid constructed in the offline phase, multiple
+#       points are often equally close to δω . Tsunami explores Ωin order to find the first such minimum point."
+#       Det her er en ting vi har flyttet til offline phase.. men det burde ikke gøre en logisk forskel
+
 # testy:
 test_latitude = 37.412833
 test_longitude = -121.998055
 
 
-
+# TODO vi skal have lavet det der spline halløj
 
 # ADJUSTABLE PARAMETERS
 OPERATING_ALTITUDE = -15.0  # meters
-OPERATING_VELOCITY = 1.0 # m/s
+OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
+ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
+                                    # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
+SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
 
 
 def great_circle_bearing(lat1, lon1, lat2, lon2):
@@ -25,22 +33,16 @@ def great_circle_bearing(lat1, lon1, lat2, lon2):
     return np.arctan2(term_1, term_2)
 
 
-def tsunami_online_init(self):
+def tsunami_online_init(self, traversal_order_size):
     self.initial_alt_reached = False
     # self.start_pos_grappeded = False
     self.traversal_index = 0
+    self.waypoints_visisted = [False] * traversal_order_size # keep track of which waypoints have been visited
+    self.get_logger().info("Tsunami online initialized")
 
 # TODO vi kan bruge Qgroundcontrol pathen den tegner, til at se hvor dronen rent faktisk flyver hen
 
 def tsunami_online_loop(self):
-
-    # # Grab start position once
-    # if not self.start_pos_grappeded:
-    #     self.start_pos = self.vehicle_local # take copy of current local position
-    #     self.start_pos_grappeded = True
-
-    #self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_SPEED)
-    #self.publish_position_setpoint_local(0.0, 0.0, OPERATING_ALTITUDE, OPERATING_SPEED)
 
 
     # Wait until drone have reached  operating altitude
@@ -50,11 +52,8 @@ def tsunami_online_loop(self):
     else:
         self.initial_alt_reached = True
 
-    #self.publish_position_setpoint_global(test_latitude, test_longitude, OPERATING_ALTITUDE, OPERATING_VELOCITY)
-
     # get current target waypoint
     lat_target, lon_target = self.traversal_order_gps[self.traversal_index]
-
 
     yaw_rad = 0.0
     if ENABLE_YAW_TURNING:
@@ -62,7 +61,10 @@ def tsunami_online_loop(self):
         yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target)
 
 
-
+    # TODO, her, i stedet for at pulibsh waypointet direkte, skal vi lave en spline interpolation, så dronen flyver glatt. aka en liste af waypoints den skal igennem for at komme til target waypoint
+    #       her skal den også have lidt tollerence, så den ikke laver små justeringer hele tiden
+    #       koden nedenfor (det med distancen) skal derfor også laves lidt om.
+    #       det betyder måske også at yaw beregningen beregnes om, hvor hver punkti splinen
     self.publish_position_setpoint_global(*self.traversal_order_gps[self.traversal_index], OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
 
     # Check if we are within 1 meter of the target waypoint
@@ -76,25 +78,6 @@ def tsunami_online_loop(self):
         if self.traversal_index >= len(self.traversal_order_gps):
             self.get_logger().info("Completed all waypoints. Hovering at last position.")
             self.traversal_index = len(self.traversal_order_gps) - 1  # stay at last waypoint
-    
 
-    # for lat, long in self.traversal_order_gps:
-    #     self.get_logger().info(f"Flying to waypoint {lat}, {long}")
-    #     self.publish_position_setpoint_global(lat, long, OPERATING_ALTITUDE, OPERATING_SPEED)
-    #     # Wait until the drone is within 1 meter of the target waypoint
-    #     while True:
-    #         if self.vehicle_local.xy_valid and self.vehicle_local.z_valid:
-    #             x_target, y_target = self.map_projection.global_to_local(lat, long)
-    #             distance = ((self.vehicle_local.x - x_target) ** 2 + (self.vehicle_local.y - y_target) ** 2) ** 0.5
-    #             if distance < 1.0:  # within 1 meter
-    #                 break
-    #         self.publish_position_setpoint_global(lat, long, OPERATING_ALTITUDE, OPERATING_SPEED)
-    #         rclpy.spin_once(self)
-    #         #self.get_logger().info(f"Distance to waypoint: {distance:.2f} meters")
- 
 
-    # lat, long = self.traversal_order_gps[30]  # first waypoint in traversal order
-    # #x, y = self.map_projection.global_to_local(lat, long)
-    # x, y = self.map_projection.global_to_local(test_latitude, test_longitude)
-
-    # self.publish_position_setpoint(x, y, -5.0)
+# TODO HUSK AT KIG PÅ TRAVERSAL ORDEREN OG SE OM DEN GIVER MENING (se det snakkede om i fitten)
