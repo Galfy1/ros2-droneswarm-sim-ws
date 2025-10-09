@@ -32,6 +32,9 @@ def great_circle_bearing(lat1, lon1, lat2, lon2):
     term_2 = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon)
     return np.arctan2(term_1, term_2)
 
+def great_cicle_distance(lat1, lon1, lat2, lon2):
+    return haversine((lat1, lon1), (lat2, lon2), unit=Unit.METERS) # haversine is also called "Great-circle Distance Formula"
+
 
 def tsunami_online_init(self, traversal_order_size):
     self.initial_alt_reached = False
@@ -70,9 +73,9 @@ def tsunami_online_loop(self):
     # Check if we are within 1 meter of the target waypoint
     # self.get_logger().info(f"Flying to {lat_target}, {lon_target}")
     # self.get_logger().info(f"Current GPS: {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}")
-    distance = haversine((self.vehicle_global_position.lat, self.vehicle_global_position.lon), (lat_target, lon_target), unit=Unit.METERS) # haversine is also called "Great-circle Distance Formula"
+    dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
     #self.get_logger().info(f"Distance to waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)}: {distance:.2f} meters")
-    if distance < 1.0:  # within 1 meter
+    if dist_to_target < 1.0:  # within 1 meter
        # self.get_logger().info(f"Reached waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)} at {lat_target}, {lon_target}")
         self.traversal_index += 1
         if self.traversal_index >= len(self.traversal_order_gps):
