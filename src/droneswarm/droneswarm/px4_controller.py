@@ -49,8 +49,7 @@ class PX4_Controller(Node):
 
         self.declare_parameter('instance_id', 1) # start ID's from 1 (not 0!) 
         self.instance_id = self.get_parameter('instance_id').get_parameter_value().integer_value
-        self.ns_base = "px4_"
-        self.ns = self.ns_base + str(self.instance_id) # Namespace for multiple vehicle instances
+        self.ns = "px4_" + str(self.instance_id) # Namespace for multiple vehicle instances
 
         self.declare_parameter('max_drone_count', 1) # its asumed that the instance_id is in the range [1, max_drone_count]
         self.max_drone_count = self.get_parameter('max_drone_count').get_parameter_value().integer_value
@@ -98,8 +97,8 @@ class PX4_Controller(Node):
         for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
             if drone_id == self.instance_id:
                 continue # skip self
-            drone_ns = self.ns_base + str(drone_id)
-            self.sync_visited_waypoints_clients.append(self.create_client(SyncVisitedWaypoints, drone_ns + 'sync_visited_waypoints'))
+            drone_ns = "drone_" + str(drone_id)
+            self.sync_visited_waypoints_clients.append(self.create_client(SyncVisitedWaypoints, drone_ns + '_sync_visited_waypoints'))
             while not self.sync_visited_waypoints_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
                 self.get_logger().info('service not available, waiting again...')
 
