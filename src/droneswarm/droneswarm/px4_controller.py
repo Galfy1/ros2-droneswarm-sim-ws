@@ -49,7 +49,11 @@ class PX4_Controller(Node):
 
         self.declare_parameter('instance_id', 1) # start ID's from 1 (not 0!) 
         self.instance_id = self.get_parameter('instance_id').get_parameter_value().integer_value
-        self.ns = "px4_" + str(self.instance_id) # Namespace for multiple vehicle instances
+
+        # Namespaces
+        self.ns_px4 = "/px4_" + str(self.instance_id) # Namespace for multiple vehicle instances. 
+        self.ns_drone = "drone_" + str(self.instance_id) # Namespace we use for communication between drones
+        self.ns_launch = self.get_namespace() # Namespace from the launch file
 
         self.declare_parameter('max_drone_count', 1) # its asumed that the instance_id is in the range [1, max_drone_count]
         self.max_drone_count = self.get_parameter('max_drone_count').get_parameter_value().integer_value
@@ -68,28 +72,28 @@ class PX4_Controller(Node):
 
         # Create publishers
         self.offboard_control_mode_publisher = self.create_publisher(
-            OffboardControlMode, self.ns + '/fmu/in/offboard_control_mode', qos_profile)
+            OffboardControlMode, self.ns_px4 + '/fmu/in/offboard_control_mode', qos_profile)
         self.trajectory_setpoint_publisher = self.create_publisher(
-            TrajectorySetpoint, self.ns + '/fmu/in/trajectory_setpoint', qos_profile)
+            TrajectorySetpoint, self.ns_px4 + '/fmu/in/trajectory_setpoint', qos_profile)
         self.vehicle_command_publisher = self.create_publisher(
-            VehicleCommand, self.ns + '/fmu/in/vehicle_command', qos_profile)
+            VehicleCommand, self.ns_px4 + '/fmu/in/vehicle_command', qos_profile)
 
         # Create subscribers
         self.vehicle_local_position_subscriber = self.create_subscription(
-            VehicleLocalPosition, self.ns + '/fmu/out/vehicle_local_position_v1', self.vehicle_local_position_callback, qos_profile)
+            VehicleLocalPosition, self.ns_px4 + '/fmu/out/vehicle_local_position_v1', self.vehicle_local_position_callback, qos_profile)
         self.vehicle_status_subscriber = self.create_subscription(
-            VehicleStatus, self.ns + '/fmu/out/vehicle_status_v1', self.vehicle_status_callback, qos_profile)
+            VehicleStatus, self.ns_px4 + '/fmu/out/vehicle_status_v1', self.vehicle_status_callback, qos_profile)
         self.vehicle_global_position_subscriber = self.create_subscription(
-            VehicleGlobalPosition, self.ns + '/fmu/out/vehicle_global_position', self.vehicle_global_position_callback, qos_profile)
+            VehicleGlobalPosition, self.ns_px4 + '/fmu/out/vehicle_global_position', self.vehicle_global_position_callback, qos_profile)
         self.home_position_subscriber = self.create_subscription(
-            HomePosition, self.ns + '/fmu/out/home_position_v1', self.home_position_callback, qos_profile)
+            HomePosition, self.ns_px4 + '/fmu/out/home_position_v1', self.home_position_callback, qos_profile)
             # NOTE: /px4_1/fmu/out/vehicle_gps_position also exist. for more info: https://docs.px4.io/main/en/msg_docs/ 
 
 
         ############ COMMUNICATION STUFF ############
 
         # Create services
-        self.sync_visited_waypoints_srv = self.create_service(SyncVisitedWaypoints, self.ns + 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
+        self.sync_visited_waypoints_srv = self.create_service(SyncVisitedWaypoints, self.ns_drone + '/sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
 
         # Create clients
         # (for each service, we need a client for each drone)
@@ -98,11 +102,10 @@ class PX4_Controller(Node):
             if drone_id == self.instance_id:
                 continue # skip self
             drone_ns = "drone_" + str(drone_id)
-            self.sync_visited_waypoints_clients.append(self.create_client(SyncVisitedWaypoints, drone_ns + '_sync_visited_waypoints'))
+            self.sync_visited_waypoints_clients.append(self.create_client(SyncVisitedWaypoints, self.ns_launch +"/"+ drone_ns + '/sync_visited_waypoints'))
             while not self.sync_visited_waypoints_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
                 self.get_logger().info('service not available, waiting again...')
 
-        #self.sync_visited_waypoints_client = self.create_client(SyncVisitedWaypoints, self.ns + 'sync_visited_waypoints')
 
 
 
@@ -261,25 +264,6 @@ class PX4_Controller(Node):
         # Request the "visited_waypoints" list from all other drones, and update our own to the union of all lists.
         # Calling this method at the start, will allow for late-joining drones to get the current state
 
-    #    for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
-    #         if drone_id == self.instance_id:
-    #             continue # skip self
-
-    #         drone_ns = self.ns_base + str(drone_id)
-    #         req = SyncVisitedWaypoints.Request()
-
-    #         future = self.sync_visited_waypoints_client.call_async(req)
-    #         rclpy.spin_until_future_complete(self, future, timeout_sec=SYNC_VISITED_WAYPOINTS_TIMEOUT) # This is "blocking". HOWEVER, callbacks will still be called (and our main loop is a timer callback, so it will be called)
-    #         if future.result() is not None:
-    #             response = future.result()
-    #             self.get_logger().info(f"Received visited waypoints from drone {drone_id}: {response.visited_waypoints}")
-    #             # Update our own visited_waypoints to the union of both lists
-    #             self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
-    #         else:
-    #             self.get_logger().warn(f"Failed to receive visited waypoints from drone {drone_id}. Drone might not exist or timeout occurred.")
-
-
-
         for client in self.sync_visited_waypoints_clients:
             req = SyncVisitedWaypoints.Request()
 
@@ -312,19 +296,20 @@ class PX4_Controller(Node):
 
         self.publish_offboard_control_heartbeat_signal() # must be called at least at 2Hz
 
-        self.get_logger().debug(f"SUSHIIII")
+        #self.get_logger().info(f"SUSHIIII")
 
         # Wait a second before starting offboard mode and arming (required by PX4)
         if self.offboard_startup_counter == self.one_sec_loop_count:
             self.engage_offboard_mode()
             self.arm()
+            self.sync_visited_waypoints() # Sync visited waypoints with all other drones
             self.offboard_startup_counter = 9999  # Prevent re-entering this if statement
         if self.offboard_startup_counter < self.one_sec_loop_count:
             self.offboard_startup_counter += 1
 
         # If PX4 is in offboard mode and map projection is initialized, run the main control loop
         if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
-            self.sync_visited_waypoints() # Sync visited waypoints with all other drones
+
             tsunami_online_loop(self)
             
 
