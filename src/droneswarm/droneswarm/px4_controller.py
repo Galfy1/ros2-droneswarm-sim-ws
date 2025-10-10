@@ -39,6 +39,7 @@ REQUEST_ALL_CURRENT_PATHS_TIMEOUT = 0.1 # seconds # TODO ADJUST
                                                 #   PROBLEM: hvis vi har decreased antallet af droner i pooolen, så kan en drone der kommer online igen have svært ved at komme med igen (fordi vi kun venter på drone_pool_count_estimate svar)
                                                 #      Potential løsning: efter man har fået drone_pool_count_estimate svar, så venter man lige lidt ekstra, så hvis en drone kommer online igen, så kan den nå at være med.
                                                 # Det kræver også hver drone har et unikt ID, så vi kan se hvem svarer
+SYNC_VISITED_WAYPOINTS_TIMEOUT = 0.1 # seconds. timeout for the client request to get the visited_waypoints lists from all other drones
 
 
 class PX4_Controller(Node):
@@ -48,7 +49,8 @@ class PX4_Controller(Node):
 
         self.declare_parameter('instance_id', 1) # start ID's from 1 (not 0!) 
         self.instance_id = self.get_parameter('instance_id').get_parameter_value().integer_value
-        self.ns = "/px4_" + str(self.instance_id) # Namespace for multiple vehicle instances
+        self.ns_base = "px4_"
+        self.ns = self.ns_base + str(self.instance_id) # Namespace for multiple vehicle instances
 
         self.declare_parameter('max_drone_count', 1) # its asumed that the instance_id is in the range [1, max_drone_count]
         self.max_drone_count = self.get_parameter('max_drone_count').get_parameter_value().integer_value
@@ -85,22 +87,31 @@ class PX4_Controller(Node):
             # NOTE: /px4_1/fmu/out/vehicle_gps_position also exist. for more info: https://docs.px4.io/main/en/msg_docs/ 
 
 
-        ###### COMMINICATION STUFF ######
+        ############ COMMUNICATION STUFF ############
 
         # Create services
-        self.sync_visited_waypoints_srv = self.create_service(SyncVisitedWaypoints, 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
+        self.sync_visited_waypoints_srv = self.create_service(SyncVisitedWaypoints, self.ns + 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
 
         # Create clients
-        self.sync_visited_waypoints_client = self.create_client(SyncVisitedWaypoints, 'sync_visited_waypoints')
-        while not self.sync_visited_waypoints_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('service not available, waiting again...')
+        # (for each service, we need a client for each drone)
+        self.sync_visited_waypoints_clients = [] 
+        for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
+            if drone_id == self.instance_id:
+                continue # skip self
+            drone_ns = self.ns_base + str(drone_id)
+            self.sync_visited_waypoints_clients.append(self.create_client(SyncVisitedWaypoints, drone_ns + 'sync_visited_waypoints'))
+            while not self.sync_visited_waypoints_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
+                self.get_logger().info('service not available, waiting again...')
+
+        #self.sync_visited_waypoints_client = self.create_client(SyncVisitedWaypoints, self.ns + 'sync_visited_waypoints')
+
 
 
         # Initialize  variables for communication
     
 
 
-        ###### COMMUNICATION STUFF END ###### 
+        ############ COMMUNICATION STUFF END ############ 
          
         
 
@@ -129,6 +140,7 @@ class PX4_Controller(Node):
 
         # Init Tsunami
         tsunami_online_init(self, len(self.traversal_order_gps))
+
 
 
     ##################### METHODS #####################
@@ -250,30 +262,45 @@ class PX4_Controller(Node):
         # Request the "visited_waypoints" list from all other drones, and update our own to the union of all lists.
         # Calling this method at the start, will allow for late-joining drones to get the current state
 
-        #self.sync_visited_waypoints_client.call_async
-       for drone in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
-            if drone == self.instance_id:
-                continue # skip self
-            # TODO 
-            # req = SyncVisitedWaypoints.Request()
-            # req.instance_id = self.instance_id
-            # req.requesting_drone_id = drone
-            # future = self.sync_visited_waypoints_client.call_async(req)
-            # rclpy.spin_until_future_complete(self, future, timeout_sec=REQUEST_ALL_CURRENT_PATHS_TIMEOUT)
-            # if future.result() is not None:
-            #     response = future.result()
-            #     self.get_logger().info(f"Received visited waypoints from drone {drone}: {response.visited_waypoints}")
-            #     # Update our own visited_waypoints to the union of both lists
-            #     self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
-            # else:
-            #     self.get_logger().warn(f"Failed to receive visited waypoints from drone {drone}. Timeout occurred.")
+    #    for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
+    #         if drone_id == self.instance_id:
+    #             continue # skip self
 
-        pass
+    #         drone_ns = self.ns_base + str(drone_id)
+    #         req = SyncVisitedWaypoints.Request()
 
-    def sync_visited_waypoints_srv_callback(self): # service
-        
-        pass
-    
+    #         future = self.sync_visited_waypoints_client.call_async(req)
+    #         rclpy.spin_until_future_complete(self, future, timeout_sec=SYNC_VISITED_WAYPOINTS_TIMEOUT) # This is "blocking". HOWEVER, callbacks will still be called (and our main loop is a timer callback, so it will be called)
+    #         if future.result() is not None:
+    #             response = future.result()
+    #             self.get_logger().info(f"Received visited waypoints from drone {drone_id}: {response.visited_waypoints}")
+    #             # Update our own visited_waypoints to the union of both lists
+    #             self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
+    #         else:
+    #             self.get_logger().warn(f"Failed to receive visited waypoints from drone {drone_id}. Drone might not exist or timeout occurred.")
+
+
+
+        for client in self.sync_visited_waypoints_clients:
+            req = SyncVisitedWaypoints.Request()
+
+            future = client.call_async(req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=SYNC_VISITED_WAYPOINTS_TIMEOUT) # This is "blocking". HOWEVER, callbacks will still be called (and our main loop is a timer callback, so it will be called)
+            if future.result() is not None:
+                response = future.result()
+                self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
+                # Update our own visited_waypoints to the union of both lists
+                self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
+            else:
+                self.get_logger().warn('Failed to receive visited waypoints. Drone might not exist or timeout occurred.')
+
+
+    def sync_visited_waypoints_srv_callback(self, request, response): # service
+        # this is called when another drone requests our visited_waypoints list
+        response.visited_waypoints = self.visited_waypoints
+        self.get_logger().info(f"Sending visited waypoints to requester: {response.visited_waypoints}")
+        return response
+
     # def current_path_incoming_request_callback(self): # DET SKAL VÆRE EN SERVICE I STEDET TODO
     #     pass
 
@@ -295,7 +322,8 @@ class PX4_Controller(Node):
             self.offboard_startup_counter += 1
 
         # If PX4 is in offboard mode and map projection is initialized, run the main control loop
-        if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:
+        if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
+            self.sync_visited_waypoints() # Sync visited waypoints with all other drones
             tsunami_online_loop(self)
             
 

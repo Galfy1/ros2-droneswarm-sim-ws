@@ -10,7 +10,7 @@ def generate_launch_description():
     # Declare the namespace argument (it can be provided when launching)
     namespace = LaunchConfiguration('namespace')
 
-    MAX_DRONE_COUNT = 1  # REMEMBER TO CHANGE THIS IF YOU ADD MORE DRONES
+    MAX_DRONE_COUNT = 3  # REMEMBER TO CHANGE THIS IF YOU ADD MORE DRONES
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -28,24 +28,24 @@ def generate_launch_description():
                 {'max_drone_count': MAX_DRONE_COUNT}
             ]
         ),
-        # Node(
-        #     package='droneswarm',
-        #     namespace=namespace,
-        #     executable='px4_controller',
-        #     name='drone_2',
-        #     parameters=[
-                # {'instance_id': 2}, # start from 1! not 0!
-                # {'max_drone_count': MAX_DRONE_COUNT}
-        #     ]
-        # ),
-        # Node(
-        #     package='droneswarm',
-        #     namespace=namespace,
-        #     executable='px4_controller',
-        #     name='drone_3',
-        #     parameters=[
-        #         {'instance_id': 3}, # start from 1! not 0!
-        #         {'max_drone_count': MAX_DRONE_COUNT}
-        #     ]
-        # )
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_2',
+            parameters=[
+                {'instance_id': 2}, # start from 1! not 0!
+                {'max_drone_count': MAX_DRONE_COUNT}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_3',
+            parameters=[
+                {'instance_id': 3}, # start from 1! not 0!
+                {'max_drone_count': MAX_DRONE_COUNT}
+            ]
+        )
     ])
