@@ -23,6 +23,8 @@ from .tsunami_online import tsunami_online_init, tsunami_online_loop
 
 # ITS BETTER TO JUST LOOK IN THE ACTUEL px4_msgs PACKAGE IN THE WORKSPACE, THEN YOU KNOW ITS THE ONE ACTUALLY BEING USED
 
+# For Interface Definitions, see: https://docs.ros.org/en/foxy/Concepts/About-ROS-Interfaces.html and https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-Interfaces.html 
+
 package_name = 'droneswarm'
 
 
@@ -75,11 +77,18 @@ class PX4_Controller(Node):
             HomePosition, self.ns + '/fmu/out/home_position_v1', self.home_position_callback, qos_profile)
             # NOTE: /px4_1/fmu/out/vehicle_gps_position also exist. for more info: https://docs.px4.io/main/en/msg_docs/ 
 
-        # Create service clients
-        # self.request_all_current_paths_client = self.create_client(None, 'request_all_current_paths', ) # TODO create srv type
+
+        ###### COMMINICATION STUFF ######
+
+        # Create services
+        self.sync_visited_waypoints_srv = self.create_service(ASD, 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
+
+        # Create clients
+        pass
 
 
-        # Create service servers
+        ###### COMMUNICATION STUFF END ###### 
+         
         
 
         # Read traversal order and home position from file (created in offline phase)
@@ -90,6 +99,8 @@ class PX4_Controller(Node):
         #     self.get_logger().info(f"Found item in parent dir: {item}")
         self.home_pos_gps_from_offline = data_loaded['home_pos_gps']
         self.traversal_order_gps = data_loaded['traversal_order_gps']
+
+        self.visited_waypoints = [False] * len(self.traversal_order_gps) # keep track of which waypoints have been visited
         
         # Initialize  variables
         self.one_sec_loop_count = int(1.0 / CONTROL_LOOP_DT)
@@ -203,21 +214,32 @@ class PX4_Controller(Node):
         self.vehicle_command_publisher.publish(msg)
 
 
-    def request_all_current_paths(self): # TODO service
+    ##################### METHODS FOR COMMUNICATION #####################
+
+    # def request_all_current_paths(self): # TODO service
+    #     pass
+
+    # def receive_all_current_paths_callback(self): 
+    #     pass
+
+
+
+    # def current_path_response(self): # TODO service
+    #     pass
+
+    # def broadcast_visited_waypoint(self): # broadcast = publish topic. its called broadcast for generilization with the tsunami implimentation for real hardware # TODO topic
+    #     pass
+
+    # def visited_waypoint_callback(self): # TODO topic
+    #     pass
+
+    def sync_visited_waypoints(self): # client
+        # Request the "visited_waypoints" list from all other drones, and update our own to the union of all lists.
+        # Calling this method at the start, will allow for late-joining drones to get the current state
         pass
 
-    def receive_all_current_paths_callback(self): 
-        pass
-
-
-
-    def current_path_response(self): # TODO service
-        pass
-
-    def broadcast_visited_waypoint(self): # broadcast = publish topic. its called broadcast for generilization with the tsunami implimentation for real hardware # TODO topic
-        pass
-
-    def visited_waypoint_callback(self): # TODO topic
+    def sync_visited_waypoints_srv_callback(self): # service
+        
         pass
     
     # def current_path_incoming_request_callback(self): # DET SKAL VÆRE EN SERVICE I STEDET TODO

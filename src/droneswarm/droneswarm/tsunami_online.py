@@ -20,9 +20,10 @@ test_longitude = -121.998055
 OPERATING_ALTITUDE = -15.0  # meters
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
-ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
-                                    # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
-SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
+# ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
+#                                     # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
+# SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
+WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
 
 
 def great_circle_bearing(lat1, lon1, lat2, lon2):
@@ -32,7 +33,7 @@ def great_circle_bearing(lat1, lon1, lat2, lon2):
     term_2 = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon)
     return np.arctan2(term_1, term_2)
 
-def great_cicle_distance(lat1, lon1, lat2, lon2):
+def great_circle_distance(lat1, lon1, lat2, lon2):
     return haversine((lat1, lon1), (lat2, lon2), unit=Unit.METERS) # haversine is also called "Great-circle Distance Formula"
 
 
@@ -75,8 +76,9 @@ def tsunami_online_loop(self):
     # self.get_logger().info(f"Current GPS: {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}")
     dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
     #self.get_logger().info(f"Distance to waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)}: {distance:.2f} meters")
-    if dist_to_target < 1.0:  # within 1 meter
-       # self.get_logger().info(f"Reached waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)} at {lat_target}, {lon_target}")
+    if dist_to_target < WAYPOINT_REACHED_TOLERANCE:
+        #self.visited_waypoints[self.traversal_index] = True # mark the waypoint as visited
+        # self.get_logger().info(f"Reached waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)} at {lat_target}, {lon_target}")
         self.traversal_index += 1
         if self.traversal_index >= len(self.traversal_order_gps):
             self.get_logger().info("Completed all waypoints. Hovering at last position.")
