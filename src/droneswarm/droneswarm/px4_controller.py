@@ -5,9 +5,9 @@ from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand
 import os
 import pickle
 
-
 from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop 
+from our_custom_interfaces.srv import SyncVisitedWaypoints
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -46,9 +46,16 @@ class PX4_Controller(Node):
     def __init__(self) -> None:
         super().__init__('px4_controller')
 
-        self.declare_parameter('instance_id', 0)
+        self.declare_parameter('instance_id', 1) # start ID's from 1 (not 0!) 
         self.instance_id = self.get_parameter('instance_id').get_parameter_value().integer_value
         self.ns = "/px4_" + str(self.instance_id) # Namespace for multiple vehicle instances
+
+        self.declare_parameter('max_drone_count', 1) # its asumed that the instance_id is in the range [1, max_drone_count]
+        self.max_drone_count = self.get_parameter('max_drone_count').get_parameter_value().integer_value
+
+        # Error check for instance_id
+        if not (1 <= self.instance_id <= self.max_drone_count):
+            raise ValueError(f"instance_id must be in the range [1, {self.max_drone_count}]") # px4 instance_id starts from 1 when using multiple vehicle simulation, and this files asumes this.
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
@@ -81,10 +88,16 @@ class PX4_Controller(Node):
         ###### COMMINICATION STUFF ######
 
         # Create services
-        #self.sync_visited_waypoints_srv = self.create_service(ASD, 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
+        self.sync_visited_waypoints_srv = self.create_service(SyncVisitedWaypoints, 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
 
         # Create clients
-        pass
+        self.sync_visited_waypoints_client = self.create_client(SyncVisitedWaypoints, 'sync_visited_waypoints')
+        while not self.sync_visited_waypoints_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+
+
+        # Initialize  variables for communication
+    
 
 
         ###### COMMUNICATION STUFF END ###### 
@@ -236,6 +249,25 @@ class PX4_Controller(Node):
     def sync_visited_waypoints(self): # client
         # Request the "visited_waypoints" list from all other drones, and update our own to the union of all lists.
         # Calling this method at the start, will allow for late-joining drones to get the current state
+
+        #self.sync_visited_waypoints_client.call_async
+       for drone in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
+            if drone == self.instance_id:
+                continue # skip self
+            # TODO 
+            # req = SyncVisitedWaypoints.Request()
+            # req.instance_id = self.instance_id
+            # req.requesting_drone_id = drone
+            # future = self.sync_visited_waypoints_client.call_async(req)
+            # rclpy.spin_until_future_complete(self, future, timeout_sec=REQUEST_ALL_CURRENT_PATHS_TIMEOUT)
+            # if future.result() is not None:
+            #     response = future.result()
+            #     self.get_logger().info(f"Received visited waypoints from drone {drone}: {response.visited_waypoints}")
+            #     # Update our own visited_waypoints to the union of both lists
+            #     self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
+            # else:
+            #     self.get_logger().warn(f"Failed to receive visited waypoints from drone {drone}. Timeout occurred.")
+
         pass
 
     def sync_visited_waypoints_srv_callback(self): # service
