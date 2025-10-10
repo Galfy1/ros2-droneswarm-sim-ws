@@ -81,7 +81,7 @@ class PX4_Controller(Node):
         ###### COMMINICATION STUFF ######
 
         # Create services
-        self.sync_visited_waypoints_srv = self.create_service(ASD, 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
+        #self.sync_visited_waypoints_srv = self.create_service(ASD, 'sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
 
         # Create clients
         pass

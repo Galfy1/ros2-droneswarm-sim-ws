@@ -24,10 +24,12 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-ament_package()
 
 # FOR GENERATING CUSTOM INTERFACES:
 find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "srv/sync_visisted_waypoints.srv"
+  "srv/SyncVisitedWaypoints.srv"
 )
+
+
+ament_package()
