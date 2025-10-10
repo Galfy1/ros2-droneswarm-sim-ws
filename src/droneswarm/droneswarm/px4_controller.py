@@ -312,6 +312,8 @@ class PX4_Controller(Node):
 
         self.publish_offboard_control_heartbeat_signal() # must be called at least at 2Hz
 
+        self.get_logger().debug(f"SUSHIIII")
+
         # Wait a second before starting offboard mode and arming (required by PX4)
         if self.offboard_startup_counter == self.one_sec_loop_count:
             self.engage_offboard_mode()
