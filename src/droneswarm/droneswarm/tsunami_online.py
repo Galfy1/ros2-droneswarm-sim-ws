@@ -26,6 +26,14 @@ ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), 
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
 
 
+# TODO, her, i stedet for at pulibsh waypointet direkte, skal vi lave en spline interpolation, så dronen flyver glatt. aka en liste af waypoints den skal igennem for at komme til target waypoint
+#       her skal den også have lidt tollerence, så den ikke laver små justeringer hele tiden
+#       koden nedenfor (det med distancen) skal derfor også laves lidt om.
+#       det betyder måske også at yaw beregningen beregnes om, hvor hver punkti splinen
+
+# TODO vi kan bruge Qgroundcontrol pathen den tegner, til at se hvor dronen rent faktisk flyver hen
+
+
 def great_circle_bearing(lat1, lon1, lat2, lon2):
     # (see https://www.movable-type.co.uk/scripts/latlong.html) ("Bearing" is the angle in Lat/Lon language)
     d_lon = lon2 - lon1
@@ -37,14 +45,27 @@ def great_circle_distance(lat1, lon1, lat2, lon2):
     return haversine((lat1, lon1), (lat2, lon2), unit=Unit.METERS) # haversine is also called "Great-circle Distance Formula"
 
 
-def tsunami_online_init(self, traversal_order_size):
+def tsunami_online_init(self):
     self.initial_alt_reached = False
     # self.start_pos_grappeded = False
-    self.traversal_index = 0
-    self.waypoints_visisted = [False] * traversal_order_size # keep track of which waypoints have been visited
+    self.traversal_index = 0 # main index in traversal order
+    self.traversal_index_commited = None # index in traversal order which is currently commited to be visited by this drone (i.e. reserved for this drone)
+    self.visited_waypoints = [False] * self.traversal_order_size # keep track of which waypoints have been visited
     self.get_logger().info("Tsunami online initialized")
 
-# TODO vi kan bruge Qgroundcontrol pathen den tegner, til at se hvor dronen rent faktisk flyver hen
+
+
+def all_waypoints_visited(self):
+    self.get_logger().info("Completed all waypoints.")
+    pass # TODO
+
+def commit_to_new_waypoint(self, waypoint_index):
+    # Locally reserve this waypoint as "currently being visited" by this drone:
+    self.traversal_index_commited = waypoint_index 
+    # Set waypoint as "visited" (we do it just as we start flying to it, to tell other drones that it is "reserved" by us):
+    self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
+    self.broadcast_visited_waypoint(waypoint_index) # mark waypoint as visited for other drones
+
 
 def tsunami_online_loop(self):
 
@@ -56,33 +77,37 @@ def tsunami_online_loop(self):
     else:
         self.initial_alt_reached = True
 
-    # get current target waypoint
-    lat_target, lon_target = self.traversal_order_gps[self.traversal_index]
 
+    # Skip to next waypoint if it is already visited (and not the one we are already commited to)
+    while self.visited_waypoints[self.traversal_index] and not (self.traversal_index == self.traversal_index_commited) :
+        if self.traversal_index >= self.traversal_order_size - 1:  # make sure we dont go out of bounds
+            all_waypoints_visited(self)
+            return
+        self.traversal_index += 1
+    
+    if self.traversal_index != self.traversal_index_commited:
+        # We have moved to a new waypoint, so we need to commit to it
+        commit_to_new_waypoint(self, self.traversal_index)
+
+    # Get current target waypoint coordinates
+    lat_target, lon_target = self.traversal_order_gps[self.traversal_index_commited]
+
+    # Calculate yaw to target waypoint (if enabled)
     yaw_rad = 0.0
     if ENABLE_YAW_TURNING:
-        # Calculate yaw to next waypoint using the Great-circle Bearing Formula 
-        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target)
+        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # using the Great-circle Bearing Formula 
 
+    # Publish position setpoint to target waypoint
+    self.publish_position_setpoint_global(lat_target, lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
 
-    # TODO, her, i stedet for at pulibsh waypointet direkte, skal vi lave en spline interpolation, så dronen flyver glatt. aka en liste af waypoints den skal igennem for at komme til target waypoint
-    #       her skal den også have lidt tollerence, så den ikke laver små justeringer hele tiden
-    #       koden nedenfor (det med distancen) skal derfor også laves lidt om.
-    #       det betyder måske også at yaw beregningen beregnes om, hvor hver punkti splinen
-    self.publish_position_setpoint_global(*self.traversal_order_gps[self.traversal_index], OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
-
-    # Check if we are within 1 meter of the target waypoint
-    # self.get_logger().info(f"Flying to {lat_target}, {lon_target}")
-    # self.get_logger().info(f"Current GPS: {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}")
+    # Check if we have reached the target waypoint
     dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
-    #self.get_logger().info(f"Distance to waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)}: {distance:.2f} meters")
     if dist_to_target < WAYPOINT_REACHED_TOLERANCE:
-        #self.visited_waypoints[self.traversal_index] = True # mark the waypoint as visited
-        # self.get_logger().info(f"Reached waypoint {self.traversal_index+1}/{len(self.traversal_order_gps)} at {lat_target}, {lon_target}")
-        self.traversal_index += 1
-        if self.traversal_index >= len(self.traversal_order_gps):
-            self.get_logger().info("Completed all waypoints. Hovering at last position.")
-            self.traversal_index = len(self.traversal_order_gps) - 1  # stay at last waypoint
+        self.get_logger().info(f"Reached waypoint: {self.traversal_index_commited} at lat: {lat_target}, lon: {lon_target}")
 
+        self.traversal_index_commited = None # we are no longer committed to this waypoint (we can get a new waypoint next loop)
+        if self.traversal_index >= self.traversal_order_size - 1:
+            all_waypoints_visited(self)
+            return
+        self.traversal_index += 1 # move to next waypoint in traversal order
 
-# TODO HUSK AT KIG PÅ TRAVERSAL ORDEREN OG SE OM DEN GIVER MENING (se det snakkede om i fitten)

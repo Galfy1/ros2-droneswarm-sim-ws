@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, VehicleGlobalPosition, HomePosition
+from std_msgs.msg import Int32
 import os
 import pickle
 
@@ -139,8 +140,9 @@ class PX4_Controller(Node):
         #     self.get_logger().info(f"Found item in parent dir: {item}")
         self.home_pos_gps_from_offline = data_loaded['home_pos_gps']
         self.traversal_order_gps = data_loaded['traversal_order_gps']
+        self.traversal_order_size = len(self.traversal_order_gps)
 
-        self.visited_waypoints = [False] * len(self.traversal_order_gps) # keep track of which waypoints have been visited
+        #self.visited_waypoints = [False] * len(self.traversal_order_gps) # keep track of which waypoints have been visited
         
         # Initialize  variables
         self.one_sec_loop_count = int(1.0 / CONTROL_LOOP_DT)
@@ -156,7 +158,7 @@ class PX4_Controller(Node):
         self.timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
 
         # Init Tsunami
-        tsunami_online_init(self, len(self.traversal_order_gps))
+        tsunami_online_init(self)
 
 
 
@@ -282,7 +284,6 @@ class PX4_Controller(Node):
     def broadcast_visited_waypoint(self, waypoint_index): # Publish Topic (its called broadcast for generilization with the tsunami implimentation for real hardware)
         # Broadcast that we have visited a waypoint by publishing to a topic
         if 0 <= waypoint_index < len(self.visited_waypoints):
-            self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
             self.get_logger().info(f"Broadcasting visited waypoint {waypoint_index}")
             msg = Int32()
             msg.data = waypoint_index
@@ -292,6 +293,7 @@ class PX4_Controller(Node):
 
     def visited_waypoint_callback(self, msg): # Topic subscriber callback
         # This is called when we receive a broadcast from another drone that it has visited a waypoint
+        self.get_logger().info(f"Received visited waypoint {msg.data}. Marking as visited locally.")
         waypoint_index = msg.data
         if 0 <= waypoint_index < len(self.visited_waypoints):
             self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
@@ -303,6 +305,8 @@ class PX4_Controller(Node):
     def sync_visited_waypoints(self): # service client
         # Request the "visited_waypoints" list from all other drones, and update our own to the union of all lists.
         # Calling this method at the start, will allow for late-joining drones to get the current state
+
+        self.get_logger().info("Syncing visited waypoints with all other drones...")
 
         for client in self.sync_visited_waypoints_clients:
             req = SyncVisitedWaypoints.Request()
