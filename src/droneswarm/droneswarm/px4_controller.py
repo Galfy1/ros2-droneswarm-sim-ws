@@ -25,6 +25,9 @@ from our_custom_interfaces.srv import SyncVisitedWaypoints
 
 # For Interface Definitions, see: https://docs.ros.org/en/foxy/Concepts/About-ROS-Interfaces.html and https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-Interfaces.html 
 
+# For thread control info, see https://docs.ros.org/en/humble/How-To-Guides/Sync-Vs-Async.html (tldr: dont use synchronous clients in callbacks, deadlock will occur! use call_async() instead)
+#                              https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html (really good read!) (important for avoiding deadlocks) (we need this for running our service clients in a timer callback)
+
 package_name = 'droneswarm'
 
 
@@ -93,7 +96,7 @@ class PX4_Controller(Node):
         ############ COMMUNICATION STUFF ############
 
         # Create services
-        self.sync_visited_waypoints_srv = self.create_service(SyncVisitedWaypoints, self.ns_drone + '/sync_visited_waypoints', self.sync_visited_waypoints_srv_callback)
+        self.sync_visited_waypoints_service = self.create_service(SyncVisitedWaypoints, self.ns_drone + '/sync_visited_waypoints', self.sync_visited_waypoints_server_callback)
 
         # Create clients
         # (for each service, we need a client for each drone)
@@ -138,7 +141,7 @@ class PX4_Controller(Node):
         self.map_projection_initialized = False
 
         # Create a timer to publish control commands
-        self.timer = self.create_timer(CONTROL_LOOP_DT, self.controll_loop_callback)
+        self.timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
 
         # Init Tsunami
         tsunami_online_init(self, len(self.traversal_order_gps))
@@ -268,20 +271,38 @@ class PX4_Controller(Node):
             req = SyncVisitedWaypoints.Request()
 
             future = client.call_async(req)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=SYNC_VISITED_WAYPOINTS_TIMEOUT) # This is "blocking". HOWEVER, callbacks will still be called (and our main loop is a timer callback, so it will be called)
-            if future.result() is not None:
-                response = future.result()
-                self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
-                # Update our own visited_waypoints to the union of both lists
-                self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
-            else:
-                self.get_logger().warn('Failed to receive visited waypoints. Drone might not exist or timeout occurred.')
+            # Note: dont use .spin_until_future_complete here! it will deadlock! Becouse sync_visited_waypoints() is being run from the main controll loop (i.e. a timer callback!)
+            # PROBLEM: Yes we use call_async(), but .spin_until_future_complete is blocking its asociated callback group! - and callbacks are needed to process the response. BUT callbacks cant be called becouse we are already in a timer callback and all the callbacks are in the same callback group!
+            #          For more info: see https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html (they explain the problem very good)
+            # SOLUTION 1: Use MultiThreadedExecutor and assign the callbacks different callback groups (by default, they all use the same). Then its allowed to block the callback!
+            # SOLUTION 2 (our choice): Use call_async() and setup a callback for when the future is done (i.e. completety non-blocking and asyncronoues)
+            # rclpy.spin_until_future_complete(self, future,) #timeout_sec=SYNC_VISITED_WAYPOINTS_TIMEOUT) # This is blocking
+            future.add_done_callback(self.sync_visited_waypoints_client_future_callback)
+        
+
+            # #print(f"Future done: {future.result()}")
+            # if future.result() is not None:
+            #     response = future.result()
+            #     self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
+            #     # Update our own visited_waypoints to the union of both lists
+            #     self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
+            # else:
+            #     self.get_logger().warn('Failed to receive visited waypoints. Drone might not exist or timeout occurred.')
+
+    def sync_visited_waypoints_client_future_callback(self, future):
+        if future.result() is not None:
+            response = future.result()
+            self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
+            # Update our own visited_waypoints to the union of both lists
+            self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
+        else:
+            self.get_logger().warn('Failed to receive visited waypoints. (Future is None)')
 
 
-    def sync_visited_waypoints_srv_callback(self, request, response): # service
+    def sync_visited_waypoints_server_callback(self, request, response): 
         # this is called when another drone requests our visited_waypoints list
         response.visited_waypoints = self.visited_waypoints
-        self.get_logger().info(f"Sending visited waypoints to requester: {response.visited_waypoints}")
+        #self.get_logger().info(f"Sending visited waypoints to requester: {response.visited_waypoints}")
         return response
 
     # def current_path_incoming_request_callback(self): # DET SKAL VÆRE EN SERVICE I STEDET TODO
@@ -292,7 +313,8 @@ class PX4_Controller(Node):
     ##################### MAIN CONTROL LOOP #####################
 
 
-    def controll_loop_callback(self) -> None:
+    def control_loop_callback(self) -> None:
+        start_time = self.get_clock().now()
 
         self.publish_offboard_control_heartbeat_signal() # must be called at least at 2Hz
 
@@ -311,6 +333,12 @@ class PX4_Controller(Node):
         if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
 
             tsunami_online_loop(self)
+
+        # Make sure control loop processing time does not exceed CONTROL_LOOP_DT:
+        end_time = self.get_clock().now()
+        elapsed_time_s = (end_time - start_time).nanoseconds / 1e9
+        if elapsed_time_s > CONTROL_LOOP_DT:
+            self.get_logger().warn(f"Control loop overrun: {elapsed_time_s:.4f} seconds")
             
 
 
