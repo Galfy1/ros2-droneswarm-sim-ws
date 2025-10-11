@@ -1,2 +1,2 @@
 ---
-our_custom_interfaces/WaypointMessage[] visited_waypoints
+our_custom_interfaces/Cell[] visited_cells

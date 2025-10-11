@@ -8,8 +8,7 @@ import pickle
 
 from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop 
-from our_custom_interfaces.srv import SyncVisitedWaypoints, WaypointMessage # custom ROS2 interfaces
-from waypoint import Waypoint
+from our_custom_interfaces.srv import SyncVisitedCells, Cell # custom ROS2 interfaces
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -44,7 +43,6 @@ REQUEST_ALL_CURRENT_PATHS_TIMEOUT = 0.1 # seconds # TODO ADJUST
                                                 #   PROBLEM: hvis vi har decreased antallet af droner i pooolen, så kan en drone der kommer online igen have svært ved at komme med igen (fordi vi kun venter på drone_pool_count_estimate svar)
                                                 #      Potential løsning: efter man har fået drone_pool_count_estimate svar, så venter man lige lidt ekstra, så hvis en drone kommer online igen, så kan den nå at være med.
                                                 # Det kræver også hver drone har et unikt ID, så vi kan se hvem svarer
-SYNC_VISITED_WAYPOINTS_TIMEOUT = 0.1 # seconds. timeout for the client request to get the visited_waypoints lists from all other drones
 
 
 class PX4_Controller(Node):
@@ -101,25 +99,25 @@ class PX4_Controller(Node):
         ############ COMMUNICATION STUFF ############
 
         # Create publishers
-        self.visited_waypoint_publisher = self.create_publisher(
-            Int32, '/visited_waypoint', qos_profile) # global topic, all drones publish and subscribe to the same topic (i.e. no individual drone namespace)
+        self.visited_cell_publisher = self.create_publisher(
+            Cell, '/announce_visited_cell', qos_profile) # global topic, all drones publish and subscribe to the same topic (i.e. no individual drone namespace)
 
         # Create subscribers
-        self.visited_waypoint_subscriber = self.create_subscription(
-            Int32, '/visited_waypoint', self.visited_waypoint_callback, qos_profile)
+        self.visited_cell_subscriber = self.create_subscription(
+            Cell, '/announce_visited_cell', self.visited_cell_callback, qos_profile)
 
         # Create services
-        self.sync_visited_waypoints_service = self.create_service(SyncVisitedWaypoints, self.ns_drone + '/sync_visited_waypoints', self.sync_visited_waypoints_server_callback)
+        self.sync_visited_cells_service = self.create_service(SyncVisitedCells, self.ns_drone + '/sync_visited_cells', self.sync_visited_cells_server_callback)
 
         # Create clients
         # (for each service, we need a client for each drone)
-        self.sync_visited_waypoints_clients = [] 
+        self.sync_visited_cells_clients = [] 
         for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
             if drone_id == self.instance_id:
                 continue # skip self
             drone_ns = "drone_" + str(drone_id)
-            self.sync_visited_waypoints_clients.append(self.create_client(SyncVisitedWaypoints, self.ns_launch +"/"+ drone_ns + '/sync_visited_waypoints'))
-            while not self.sync_visited_waypoints_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
+            self.sync_visited_cells_clients.append(self.create_client(SyncVisitedCells, self.ns_launch +"/"+ drone_ns + '/sync_visited_cells'))
+            while not self.sync_visited_cells_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
                 self.get_logger().info('service not available, waiting again...')
 
 
@@ -142,9 +140,7 @@ class PX4_Controller(Node):
         self.home_pos_gps_from_offline = data_loaded['home_pos_gps']
         self.bf_traversal_gps = data_loaded['bf_traversal_gps']
         self.bf_traversal_size = len(self.bf_traversal_gps)
-        self.visited_waypoints = [] # to keep track of which waypoints have been visited (list instead of set for better compatibility with ROS2 interfaces)
-
-        #self.visited_waypoints = [False] * len(self.traversal_order_gps) # keep track of which waypoints have been visited
+        self.visited_cells = set() # Set to keep track of which cells have been visited (dont use "{}" because that creates an empty dict, not a set)
         
         # Initialize  variables
         self.one_sec_loop_count = int(1.0 / CONTROL_LOOP_DT)
@@ -273,68 +269,59 @@ class PX4_Controller(Node):
     # def current_path_response(self): # TODO service
     #     pass
 
-    # def broadcast_visited_waypoint(self): # broadcast = publish topic. its called broadcast for generilization with the tsunami implimentation for real hardware 
-    #     pass
-
-    # def visited_waypoint_callback(self): # TODO topic
-    #     pass
 
 
 
+    def broadcast_visited_cell(self, cell): # Publish Topic (its called broadcast for generilization with the tsunami implimentation for real hardware)
+        # Broadcast that we have visited a cell by publishing to a topic
+        self.get_logger().info(f"Broadcasting visited cell {cell}")
+        msg = Cell()
+        msg.x = cell[0]
+        msg.y = cell[1]
+        self.visited_cell_publisher.publish(msg)
 
 
-    def broadcast_visited_waypoint(self, waypoint_index): # Publish Topic (its called broadcast for generilization with the tsunami implimentation for real hardware)
-        # Broadcast that we have visited a waypoint by publishing to a topic
-        if 0 <= waypoint_index < len(self.visited_waypoints):
-            self.get_logger().info(f"Broadcasting visited waypoint {waypoint_index}")
-            msg = Int32()
-            msg.data = waypoint_index
-            self.visited_waypoint_publisher.publish(msg)
-        else:
-            self.get_logger().warn(f"Invalid waypoint index {waypoint_index} for broadcasting visited waypoint")
-
-    def visited_waypoint_callback(self, msg): # Topic subscriber callback
-        # This is called when we receive a broadcast from another drone that it has visited a waypoint
-        self.get_logger().info(f"Received visited waypoint {msg.data}. Marking as visited locally.")
-        waypoint_index = msg.data
-        if 0 <= waypoint_index < len(self.visited_waypoints):
-            self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
-        else:
-            self.get_logger().warn(f"Invalid waypoint index {waypoint_index} received in visited waypoint callback")
+    def visited_cell_callback(self, msg): # Topic subscriber callback
+        # This is called when we receive a broadcast from another drone that it has visited a cell
+        self.get_logger().info(f"Received visited cell {msg.data}. Marking as visited locally.")
+        cell = msg.data
+        self.visited_cells.add((cell.x, cell.y))
 
 
-
-    def sync_visited_waypoints(self): # service client
-        # Request the "visited_waypoints" list from all other drones, and update our own to the union of all lists.
+    def sync_visited_cells(self): # service client
+        # Request the "visited_cells" from all other drones, and update our own local set accordingly.
         # Calling this method at the start, will allow for late-joining drones to get the current state
 
-        self.get_logger().info("Syncing visited waypoints with all other drones...")
+        self.get_logger().info("Syncing visited cells with all other drones...")
 
-        for client in self.sync_visited_waypoints_clients:
-            req = SyncVisitedWaypoints.Request()
+        for client in self.sync_visited_cells_clients:
+            req = SyncVisitedCells.Request()
 
             future = client.call_async(req)
-            # Note: dont use .spin_until_future_complete here! it will deadlock! Because sync_visited_waypoints() is being run from the main controll loop (i.e. a timer callback!)
+            # Note: dont use .spin_until_future_complete here! it will deadlock! Because sync_visited_cells() is being run from the main controll loop (i.e. a timer callback!)
             # PROBLEM: Yes we use call_async(), but .spin_until_future_complete is blocking its asociated callback group! - and callbacks are needed to process the response. BUT callbacks cant be called because we are already in a timer callback and all the callbacks are in the same callback group!
             #          For more info: see https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html (they explain the problem very good)
             # SOLUTION 1: Use MultiThreadedExecutor and assign the callbacks different callback groups (by default, they all use the same). Then its allowed to block the callback!
             # SOLUTION 2 (our choice): Use call_async() and setup a callback for when the future is done (i.e. completety non-blocking and asyncronoues)
-            # rclpy.spin_until_future_complete(self, future,) #timeout_sec=SYNC_VISITED_WAYPOINTS_TIMEOUT) # This is blocking
-            future.add_done_callback(self.sync_visited_waypoints_client_future_callback)
 
-    def sync_visited_waypoints_client_future_callback(self, future):
+            future.add_done_callback(self.sync_visited_cells_client_future_callback)
+
+    def sync_visited_cells_client_future_callback(self, future):
+        
         if future.result() is not None:
             response = future.result()
-            #self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
-            # Update our own visited_waypoints to the union of both lists
-            self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
-        else:
-            self.get_logger().warn('Failed to receive visited waypoints. (Future is None)')
+            # Add visited cells to our local visited_cells set
+            for cell in response.visited_cells: 
+                self.visited_cells.add((cell.x, cell.y))
 
-    def sync_visited_waypoints_server_callback(self, request, response): # service server callback
-        # this is called when another drone requests our visited_waypoints list
-        response.visited_waypoints = self.visited_waypoints
-        #self.get_logger().info(f"Sending visited waypoints to requester: {response.visited_waypoints}")
+            #self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
+        else:
+            self.get_logger().warn('Failed to receive visited cells. (Future is None)')
+
+    def sync_visited_cells_server_callback(self, request, response): # service server callback
+        # this is called when another drone requests our visited_cells list
+        visited_cells_msg = [Cell(x=x, y=y) for x, y in self.visited_cells]
+        response.visited_cells = visited_cells_msg
         return response
 
     # def current_path_incoming_request_callback(self): # DET SKAL VÆRE EN SERVICE I STEDET TODO
@@ -357,7 +344,7 @@ class PX4_Controller(Node):
         if self.offboard_startup_counter == wait_loops:
             self.engage_offboard_mode()
             self.arm()
-            self.sync_visited_waypoints() # Sync visited waypoints with all other drones
+            self.sync_visited_cells() # Sync visited cells with all other drones
             self.offboard_startup_counter = 9999  # Prevent re-entering this if statement
         if self.offboard_startup_counter < wait_loops:
             self.offboard_startup_counter += 1
