@@ -1,2 +1,2 @@
-Int64 x
-Int64 y
+int64 x
+int64 y

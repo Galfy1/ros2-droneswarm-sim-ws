@@ -1,5 +1,6 @@
 from haversine import haversine, Unit
 import numpy as np
+import math
 
 from waypoint import Waypoint
 
@@ -11,9 +12,9 @@ from waypoint import Waypoint
 #       points are often equally close to δω . Tsunami explores Ωin order to find the first such minimum point."
 #       Det her er en ting vi har flyttet til offline phase.. men det burde ikke gøre en logisk forskel
 
-# testy:
-test_latitude = 37.412833
-test_longitude = -121.998055
+# # testy:
+# test_latitude = 37.412833
+# test_longitude = -121.998055
 
 
 # TODO vi skal have lavet det der spline halløj
@@ -47,25 +48,90 @@ def great_circle_distance(lat1, lon1, lat2, lon2):
     return haversine((lat1, lon1), (lat2, lon2), unit=Unit.METERS) # haversine is also called "Great-circle Distance Formula"
 
 
+
+
+
+
+
 def tsunami_online_init(self):
     self.initial_alt_reached = False
-    # self.start_pos_grappeded = False
-    self.traversal_index = 0 # main index in traversal order
-    self.traversal_index_commited = None # index in traversal order which is currently commited to be visited by this drone (i.e. reserved for this drone)
+    self.current_cell = self.home_cell_from_offline # current cell (x,y) tuple
     self.get_logger().info("Tsunami online initialized")
 
 
-
-def all_waypoints_visited(self):
-    self.get_logger().info("Completed all waypoints.")
+def all_cells_visited(self):
+    self.get_logger().info("Completed all cells.")
     pass # TODO
 
-def commit_to_new_waypoint(self, waypoint_index):
-    # Locally reserve this waypoint as "currently being visited" by this drone:
-    self.traversal_index_commited = waypoint_index 
-    # Set waypoint as "visited" (we do it just as we start flying to it, to tell other drones that it is "reserved" by us):
-    self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
-    self.broadcast_visited_waypoint(waypoint_index) # mark waypoint as visited for other drones
+
+
+# def tsunami_online_init(self):
+#     self.initial_alt_reached = False
+#     self.traversal_index = 0 # main index in traversal order
+#     self.traversal_index_commited = None # index in traversal order which is currently commited to be visited by this drone (i.e. reserved for this drone)
+#     self.get_logger().info("Tsunami online initialized")
+
+
+
+# def all_waypoints_visited(self):
+#     self.get_logger().info("Completed all waypoints.")
+#     pass # TODO
+
+# def commit_to_new_waypoint(self, waypoint_index):
+#     # Locally reserve this waypoint as "currently being visited" by this drone:
+#     self.traversal_index_commited = waypoint_index 
+#     # Set waypoint as "visited" (we do it just as we start flying to it, to tell other drones that it is "reserved" by us):
+#     self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
+#     self.broadcast_visited_waypoint(waypoint_index) # mark waypoint as visited for other drones
+
+
+
+
+
+
+# Find the next cell in the Breadth First Traversal
+# bft_cells: list of (x,y) tuples
+# current_cell: (x,y) tuple
+# visited_cells: set of (x,y) tuples
+# allow_diagonal: bool, if True, diagonal neighbors are considered neighbors
+def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=True):
+
+
+    # Find current location in bft_cells
+    if current_cell not in bft_cells:
+        raise ValueError("Current cell is not in the list of BFT cells.")
+    current_index = bft_cells.index(current_cell)
+
+    # Find the next cell in the BFT order that is a neighbor of the current cell (and not yet visited)
+    for i in range(current_index + 1, len(bft_cells)):
+        next_cell = bft_cells[i]
+        if next_cell not in visited_cells:
+            dx = abs(next_cell[0] - current_cell[0])
+            dy = abs(next_cell[1] - current_cell[1])
+
+            if (allow_diagonal and max(dx, dy) == 1) or (not allow_diagonal and dx + dy == 1):
+                # neighbor found!
+                return next_cell
+
+
+    # No unvisited neighbor is found. Find the closest unvisited cell
+    min_dist = float("inf")
+    closest_cell = None
+    for cell in bft_cells:
+        if cell not in visited_cells:
+            dx = abs(cell[0] - current_cell[0])
+            dy = abs(cell[1] - current_cell[1])
+            dist = math.sqrt(dx**2 + dy**2)  # Euclidean distance
+            if dist < min_dist:
+                min_dist = dist
+                closest_cell = cell
+    return closest_cell
+
+
+
+
+
+
 
 
 def tsunami_online_loop(self):
@@ -78,37 +144,97 @@ def tsunami_online_loop(self):
     else:
         self.initial_alt_reached = True
 
+    # Check if all cells have been visited
+    if len(self.visited_cells) >= self.bf_traversal_size:
+        all_cells_visited(self)
+        return
 
-    # Skip to next waypoint if it is already visited (and not the one we are already commited to)
-    while self.visited_waypoints[self.traversal_index] and not (self.traversal_index == self.traversal_index_commited) :
-        if self.traversal_index >= self.traversal_order_size - 1:  # make sure we dont go out of bounds
-            all_waypoints_visited(self)
-            return
-        self.traversal_index += 1
+
+
+
+
+    # DET HER NEDERSTÅENDE SKAL VEL SKE HVIS VI RENT FAKTISK SKAL SKIFTE TIL EN NY CELLE
     
-    if self.traversal_index != self.traversal_index_commited:
-        # We have moved to a new waypoint, so we need to commit to it
-        commit_to_new_waypoint(self, self.traversal_index)
 
-    # Get current target waypoint coordinates
-    lat_target, lon_target = self.traversal_order_gps[self.traversal_index_commited]
+    # Find the next cell in the Breadth First Traversal
+    next_cell = find_next_cell(self.bf_traversal_order, self.current_cell, self.visited_cells)
+    if next_cell is not None:
+        self.current_cell = next_cell
+        self.visited_cells.add(next_cell)
+    else:
+        self.get_logger().info("No valid next cell found.")
 
-    # Calculate yaw to target waypoint (if enabled)
-    yaw_rad = 0.0
-    if ENABLE_YAW_TURNING:
-        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # using the Great-circle Bearing Formula 
 
-    # Publish position setpoint to target waypoint
-    self.publish_position_setpoint_global(lat_target, lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
 
-    # Check if we have reached the target waypoint
-    dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
-    if dist_to_target < WAYPOINT_REACHED_TOLERANCE:
-        self.get_logger().info(f"Reached waypoint: {self.traversal_index_commited} at lat: {lat_target}, lon: {lon_target}")
 
-        self.traversal_index_commited = None # we are no longer committed to this waypoint (we can get a new waypoint next loop)
-        if self.traversal_index >= self.traversal_order_size - 1:
-            all_waypoints_visited(self)
-            return
-        self.traversal_index += 1 # move to next waypoint in traversal order
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # # Wait until drone have reached  operating altitude
+    # if self.vehicle_local_position.z > OPERATING_ALTITUDE+0.5 and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
+    #     self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY)
+    #     return
+    # else:
+    #     self.initial_alt_reached = True
+
+
+    # # Skip to next waypoint if it is already visited (and not the one we are already commited to)
+    # while self.visited_waypoints[self.traversal_index] and not (self.traversal_index == self.traversal_index_commited) :
+    #     if self.traversal_index >= self.traversal_order_size - 1:  # make sure we dont go out of bounds
+    #         all_waypoints_visited(self)
+    #         return
+    #     self.traversal_index += 1
+    
+    # if self.traversal_index != self.traversal_index_commited:
+    #     # We have moved to a new waypoint, so we need to commit to it
+    #     commit_to_new_waypoint(self, self.traversal_index)
+
+    # # Get current target waypoint coordinates
+    # lat_target, lon_target = self.traversal_order_gps[self.traversal_index_commited]
+
+    # # Calculate yaw to target waypoint (if enabled)
+    # yaw_rad = 0.0
+    # if ENABLE_YAW_TURNING:
+    #     yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # using the Great-circle Bearing Formula 
+
+    # # Publish position setpoint to target waypoint
+    # self.publish_position_setpoint_global(lat_target, lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
+
+    # # Check if we have reached the target waypoint
+    # dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
+    # if dist_to_target < WAYPOINT_REACHED_TOLERANCE:
+    #     self.get_logger().info(f"Reached waypoint: {self.traversal_index_commited} at lat: {lat_target}, lon: {lon_target}")
+
+    #     self.traversal_index_commited = None # we are no longer committed to this waypoint (we can get a new waypoint next loop)
+    #     if self.traversal_index >= self.traversal_order_size - 1:
+    #         all_waypoints_visited(self)v
+    #         return
+    #     self.traversal_index += 1 # move to next waypoint in traversal order
 

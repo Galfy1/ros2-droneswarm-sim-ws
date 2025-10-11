@@ -132,12 +132,14 @@ class PX4_Controller(Node):
         
 
         # Read traversal order and home position from file (created in offline phase)
-        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'bf_traversal_gps.pkl')
+        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'bf_traversal.pkl')
         with open(pkl_path, 'rb') as fp:
             data_loaded = pickle.load(fp) 
         # for item in os.listdir(dir_path):
         #     self.get_logger().info(f"Found item in parent dir: {item}")
-        self.home_pos_gps_from_offline = data_loaded['home_pos_gps']
+        self.home_cell_from_offline = data_loaded['home_cell']
+        self.home_gps_from_offline = data_loaded['home_pos_gps']
+        self.bf_traversal_cells = data_loaded['bf_traversal_cells']
         self.bf_traversal_gps = data_loaded['bf_traversal_gps']
         self.bf_traversal_size = len(self.bf_traversal_gps)
         self.visited_cells = set() # Set to keep track of which cells have been visited (dont use "{}" because that creates an empty dict, not a set)
@@ -171,7 +173,7 @@ class PX4_Controller(Node):
         # Initialize map projection using home position from PX4.
         if home_position.valid_hpos and not self.map_projection_initialized:
             # Check if home position matches the one from offline phase (within a small tolerance)
-            if not (abs(home_position.lat - self.home_pos_gps_from_offline[0]) < HOME_POS_TOLERANCE and abs(home_position.lon - self.home_pos_gps_from_offline[1]) < HOME_POS_TOLERANCE):
+            if not (abs(home_position.lat - self.home_gps_from_offline[0]) < HOME_POS_TOLERANCE and abs(home_position.lon - self.home_gps_from_offline[1]) < HOME_POS_TOLERANCE):
                 raise ValueError(f"Home position from PX4 does not match the one from offline phase (within a tolerance of {HOME_POS_TOLERANCE} degrees).")
             self.home_pos = home_position
             self.map_projection = MapProjectionImpl(self.home_pos.lat, self.home_pos.lon) # Initialize map projection with actual home position from PX4
