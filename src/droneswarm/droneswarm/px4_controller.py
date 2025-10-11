@@ -284,10 +284,9 @@ class PX4_Controller(Node):
         self.visited_cell_publisher.publish(msg)
 
 
-    def visited_cell_callback(self, msg): # Topic subscriber callback
+    def visited_cell_callback(self, cell): # Topic subscriber callback
         # This is called when we receive a broadcast from another drone that it has visited a cell
-        self.get_logger().info(f"Received visited cell {msg.data}. Marking as visited locally.")
-        cell = msg.data
+        self.get_logger().info(f"Received visited cell {cell}. Marking as visited locally.")
         self.visited_cells.add((cell.x, cell.y))
 
 

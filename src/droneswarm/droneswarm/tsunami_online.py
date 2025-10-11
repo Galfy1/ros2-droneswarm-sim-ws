@@ -18,13 +18,14 @@ import math
 # TODO vi skal have lavet det der spline halløj
 
 # ADJUSTABLE PARAMETERS
-OPERATING_ALTITUDE = -15.0  # meters
+OPERATING_ALTITUDE = -20.0  # meters
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
 # ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
 #                                     # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
 # SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
+ALLOW_DIAGONAL_NEIGHBORS = True  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
 
 
 # TODO, her, i stedet for at pulibsh waypointet direkte, skal vi lave en spline interpolation, så dronen flyver glatt. aka en liste af waypoints den skal igennem for at komme til target waypoint
@@ -93,7 +94,7 @@ def all_cells_visited(self):
 # current_cell: (x,y) tuple
 # visited_cells: set of (x,y) tuples
 # allow_diagonal: bool, if True, diagonal neighbors are considered neighbors
-def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=True):
+def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=False):
 
 
     # Find current location in bft_cells
@@ -129,7 +130,7 @@ def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=True):
 
 def update_target_cell(self):
     # Find the next cell in the Breadth First Traversal
-    next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells)
+    next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_NEIGHBORS)
     if next_cell is not None:
         # New target cell found!
         self.current_target_cell = next_cell
@@ -154,6 +155,9 @@ def cell_to_gps(self, cell):
 
 
 def tsunami_online_loop(self):
+
+
+    # POTENTIEL GRUND TIL WEIRD FLIGHT PATH:
 
  
     # Wait until drone have reached  operating altitude
