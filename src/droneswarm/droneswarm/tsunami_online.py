@@ -129,7 +129,7 @@ def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=True):
 
 def update_target_cell(self):
     # Find the next cell in the Breadth First Traversal
-    next_cell = find_next_cell(self.bf_traversal_order, self.current_target_cell, self.visited_cells)
+    next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells)
     if next_cell is not None:
         # New target cell found!
         self.current_target_cell = next_cell
@@ -146,7 +146,7 @@ def update_target_cell(self):
 def cell_to_gps(self, cell):
     
     # Find index of cell in bf
-    cell_index = self.bf_traversal_order.index(cell) # this should only result in one index, since each cell is unique in the traversal order
+    cell_index = self.bf_traversal_cells.index(cell) # this should only result in one index, since each cell is unique in the traversal order
 
     # Convert cell to GPS coordinates
     gps_coords = self.bf_traversal_gps[cell_index]
@@ -169,18 +169,18 @@ def tsunami_online_loop(self):
         return
 
     # Check if we have reached the target cell - if so, update to next target cell
-    dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
+    dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target) # in meters
     if dist_to_target < WAYPOINT_REACHED_TOLERANCE:
-        self.get_logger().info(f"Reached cell: {self.current_target_cell} at lat: {lat_target}, lon: {lon_target}")
+        self.get_logger().info(f"Reached cell: {self.current_target_cell} at lat: {self.lat_target}, lon: {self.lon_target}")
         update_target_cell(self) # Update to next target cell
 
     # Calculate yaw to target waypoint (if enabled)
     yaw_rad = 0.0
     if ENABLE_YAW_TURNING:
-        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # using the Great-circle Bearing Formula 
+        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target) # using the Great-circle Bearing Formula
 
     # Publish position setpoint to target waypoint
-    self.publish_position_setpoint_global(lat_target, lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
+    self.publish_position_setpoint_global(self.lat_target, self.lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
 
 
 

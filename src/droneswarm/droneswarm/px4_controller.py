@@ -8,7 +8,8 @@ import pickle
 
 from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop 
-from our_custom_interfaces.srv import SyncVisitedCells, Cell # custom ROS2 interfaces
+from our_custom_interfaces.srv import SyncVisitedCells # custom ROS2 interfaces
+from our_custom_interfaces.msg import Cell # custom ROS2 interfaces
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -138,7 +139,7 @@ class PX4_Controller(Node):
         # for item in os.listdir(dir_path):
         #     self.get_logger().info(f"Found item in parent dir: {item}")
         self.home_cell_from_offline = data_loaded['home_cell']
-        self.home_gps_from_offline = data_loaded['home_pos_gps']
+        self.home_gps_from_offline = data_loaded['home_gps']
         self.bf_traversal_cells = data_loaded['bf_traversal_cells']
         self.bf_traversal_gps = data_loaded['bf_traversal_gps']
         self.bf_traversal_size = len(self.bf_traversal_gps)
