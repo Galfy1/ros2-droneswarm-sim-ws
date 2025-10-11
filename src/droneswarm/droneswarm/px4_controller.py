@@ -353,7 +353,7 @@ class PX4_Controller(Node):
 
         # If PX4 is in offboard mode and map projection is initialized, run the main control loop
         if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
-            #tsunami_online_loop(self) # TODO HAR FJERNET MIDLERTIDIGT
+            tsunami_online_loop(self) 
 
         # ERROR CHECKING - Make sure control loop processing time does not exceed CONTROL_LOOP_DT:
         end_time = self.get_clock().now()

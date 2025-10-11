@@ -29,7 +29,7 @@ endif()
 find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Cell.msg"
-  "srv/SyncVisitedWaypoints.srv"
+  "srv/SyncVisitedCells.srv"
 )
 
 

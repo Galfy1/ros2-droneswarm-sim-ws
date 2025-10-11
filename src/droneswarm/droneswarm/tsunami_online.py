@@ -2,8 +2,6 @@ from haversine import haversine, Unit
 import numpy as np
 import math
 
-from waypoint import Waypoint
-
 # See the following for helpfull lat/lon/bearing calculations:
 #    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
 
@@ -55,7 +53,8 @@ def great_circle_distance(lat1, lon1, lat2, lon2):
 
 def tsunami_online_init(self):
     self.initial_alt_reached = False
-    self.current_cell = self.home_cell_from_offline # current cell (x,y) tuple
+    self.current_target_cell = self.home_cell_from_offline # initialize to home cell
+    self.lat_target, self.lon_target = cell_to_gps(self, self.current_target_cell) # get initial target gps coordinates
     self.get_logger().info("Tsunami online initialized")
 
 
@@ -128,15 +127,35 @@ def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=True):
     return closest_cell
 
 
+def update_target_cell(self):
+    # Find the next cell in the Breadth First Traversal
+    next_cell = find_next_cell(self.bf_traversal_order, self.current_target_cell, self.visited_cells)
+    if next_cell is not None:
+        # New target cell found!
+        self.current_target_cell = next_cell
+        self.lat_target, self.lon_target = cell_to_gps(self, next_cell)
+        # Mark the next cell as "visited" (both locally and broadcast to other drones) - this is to "reserve" the cell for this drone
+        self.visited_cells.add(next_cell)
+        self.broadcast_visited_cell(next_cell) 
+    else:
+        self.get_logger().info("No valid next cell found.")
+        # this means all cells have been visited
+        all_cells_visited(self) 
 
 
+def cell_to_gps(self, cell):
+    
+    # Find index of cell in bf
+    cell_index = self.bf_traversal_order.index(cell) # this should only result in one index, since each cell is unique in the traversal order
 
-
+    # Convert cell to GPS coordinates
+    gps_coords = self.bf_traversal_gps[cell_index]
+    return gps_coords
 
 
 def tsunami_online_loop(self):
 
-
+ 
     # Wait until drone have reached  operating altitude
     if self.vehicle_local_position.z > OPERATING_ALTITUDE+0.5 and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
         self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY)
@@ -149,29 +168,19 @@ def tsunami_online_loop(self):
         all_cells_visited(self)
         return
 
+    # Check if we have reached the target cell - if so, update to next target cell
+    dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
+    if dist_to_target < WAYPOINT_REACHED_TOLERANCE:
+        self.get_logger().info(f"Reached cell: {self.current_target_cell} at lat: {lat_target}, lon: {lon_target}")
+        update_target_cell(self) # Update to next target cell
 
+    # Calculate yaw to target waypoint (if enabled)
+    yaw_rad = 0.0
+    if ENABLE_YAW_TURNING:
+        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # using the Great-circle Bearing Formula 
 
-
-
-    # DET HER NEDERSTÅENDE SKAL VEL SKE HVIS VI RENT FAKTISK SKAL SKIFTE TIL EN NY CELLE
-    
-
-    # Find the next cell in the Breadth First Traversal
-    next_cell = find_next_cell(self.bf_traversal_order, self.current_cell, self.visited_cells)
-    if next_cell is not None:
-        self.current_cell = next_cell
-        self.visited_cells.add(next_cell)
-    else:
-        self.get_logger().info("No valid next cell found.")
-
-
-
-
-
-
-
-
-
+    # Publish position setpoint to target waypoint
+    self.publish_position_setpoint_global(lat_target, lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
 
 
 
