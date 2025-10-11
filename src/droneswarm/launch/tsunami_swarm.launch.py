@@ -25,6 +25,7 @@ def generate_launch_description():
             name='drone_1',
             parameters=[
                 {'instance_id': 1}, # start from 1! not 0!
+                {'start_flight_delay_s': 0}, # delay before starting the flight (seconds)
                 {'max_drone_count': MAX_DRONE_COUNT}
             ]
         ),
@@ -35,6 +36,7 @@ def generate_launch_description():
             name='drone_2',
             parameters=[
                 {'instance_id': 2},
+                {'start_flight_delay_s': 5},
                 {'max_drone_count': MAX_DRONE_COUNT}
             ]
         ),
@@ -45,6 +47,7 @@ def generate_launch_description():
             name='drone_3',
             parameters=[
                 {'instance_id': 3}, 
+                {'start_flight_delay_s': 10},
                 {'max_drone_count': MAX_DRONE_COUNT}
             ]
         )

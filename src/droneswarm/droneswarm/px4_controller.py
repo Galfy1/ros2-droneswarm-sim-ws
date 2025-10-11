@@ -26,7 +26,7 @@ from our_custom_interfaces.srv import SyncVisitedWaypoints
 # For Interface Definitions, see: https://docs.ros.org/en/foxy/Concepts/About-ROS-Interfaces.html and https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-Interfaces.html 
 
 # For thread control info, see https://docs.ros.org/en/humble/How-To-Guides/Sync-Vs-Async.html (tldr: dont use synchronous clients in callbacks, deadlock will occur! use call_async() instead)
-#                              https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html (really good read!) (important for avoiding deadlocks) (we need this for running our service clients in a timer callback)
+#                              https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html (really good read!) 
 
 package_name = 'droneswarm'
 
@@ -51,15 +51,18 @@ class PX4_Controller(Node):
         super().__init__('px4_controller')
 
         self.declare_parameter('instance_id', 1) # start ID's from 1 (not 0!) 
+        self.declare_parameter('max_drone_count', 1) # its asumed that the instance_id is in the range [1, max_drone_count]
+        self.declare_parameter('start_flight_delay_s', 0) # delay before starting the flight (seconds)
+
         self.instance_id = self.get_parameter('instance_id').get_parameter_value().integer_value
+        self.max_drone_count = self.get_parameter('max_drone_count').get_parameter_value().integer_value
+        self.start_flight_delay_s = self.get_parameter('start_flight_delay_s').get_parameter_value().integer_value
 
         # Namespaces
         self.ns_px4 = "/px4_" + str(self.instance_id) # Namespace for multiple vehicle instances. 
         self.ns_drone = "drone_" + str(self.instance_id) # Namespace we use for communication between drones
         self.ns_launch = self.get_namespace() # Namespace from the launch file
 
-        self.declare_parameter('max_drone_count', 1) # its asumed that the instance_id is in the range [1, max_drone_count]
-        self.max_drone_count = self.get_parameter('max_drone_count').get_parameter_value().integer_value
 
         # Error check for instance_id
         if not (1 <= self.instance_id <= self.max_drone_count):
@@ -94,6 +97,14 @@ class PX4_Controller(Node):
 
 
         ############ COMMUNICATION STUFF ############
+
+        # Create publishers
+        self.visited_waypoint_publisher = self.create_publisher(
+            Int32, '/visited_waypoint', qos_profile) # global topic, all drones publish and subscribe to the same topic (i.e. no individual drone namespace)
+
+        # Create subscribers
+        self.visited_waypoint_subscriber = self.create_subscription(
+            Int32, '/visited_waypoint', self.visited_waypoint_callback, qos_profile)
 
         # Create services
         self.sync_visited_waypoints_service = self.create_service(SyncVisitedWaypoints, self.ns_drone + '/sync_visited_waypoints', self.sync_visited_waypoints_server_callback)
@@ -133,6 +144,7 @@ class PX4_Controller(Node):
         
         # Initialize  variables
         self.one_sec_loop_count = int(1.0 / CONTROL_LOOP_DT)
+        self.start_flight_delay_loops = int(float(self.start_flight_delay_s) / CONTROL_LOOP_DT)
         self.offboard_startup_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
@@ -257,13 +269,38 @@ class PX4_Controller(Node):
     # def current_path_response(self): # TODO service
     #     pass
 
-    # def broadcast_visited_waypoint(self): # broadcast = publish topic. its called broadcast for generilization with the tsunami implimentation for real hardware # TODO topic
+    # def broadcast_visited_waypoint(self): # broadcast = publish topic. its called broadcast for generilization with the tsunami implimentation for real hardware 
     #     pass
 
     # def visited_waypoint_callback(self): # TODO topic
     #     pass
 
-    def sync_visited_waypoints(self): # client
+
+
+
+
+    def broadcast_visited_waypoint(self, waypoint_index): # Publish Topic (its called broadcast for generilization with the tsunami implimentation for real hardware)
+        # Broadcast that we have visited a waypoint by publishing to a topic
+        if 0 <= waypoint_index < len(self.visited_waypoints):
+            self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
+            self.get_logger().info(f"Broadcasting visited waypoint {waypoint_index}")
+            msg = Int32()
+            msg.data = waypoint_index
+            self.visited_waypoint_publisher.publish(msg)
+        else:
+            self.get_logger().warn(f"Invalid waypoint index {waypoint_index} for broadcasting visited waypoint")
+
+    def visited_waypoint_callback(self, msg): # Topic subscriber callback
+        # This is called when we receive a broadcast from another drone that it has visited a waypoint
+        waypoint_index = msg.data
+        if 0 <= waypoint_index < len(self.visited_waypoints):
+            self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
+        else:
+            self.get_logger().warn(f"Invalid waypoint index {waypoint_index} received in visited waypoint callback")
+
+
+
+    def sync_visited_waypoints(self): # service client
         # Request the "visited_waypoints" list from all other drones, and update our own to the union of all lists.
         # Calling this method at the start, will allow for late-joining drones to get the current state
 
@@ -271,35 +308,24 @@ class PX4_Controller(Node):
             req = SyncVisitedWaypoints.Request()
 
             future = client.call_async(req)
-            # Note: dont use .spin_until_future_complete here! it will deadlock! Becouse sync_visited_waypoints() is being run from the main controll loop (i.e. a timer callback!)
-            # PROBLEM: Yes we use call_async(), but .spin_until_future_complete is blocking its asociated callback group! - and callbacks are needed to process the response. BUT callbacks cant be called becouse we are already in a timer callback and all the callbacks are in the same callback group!
+            # Note: dont use .spin_until_future_complete here! it will deadlock! Because sync_visited_waypoints() is being run from the main controll loop (i.e. a timer callback!)
+            # PROBLEM: Yes we use call_async(), but .spin_until_future_complete is blocking its asociated callback group! - and callbacks are needed to process the response. BUT callbacks cant be called because we are already in a timer callback and all the callbacks are in the same callback group!
             #          For more info: see https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html (they explain the problem very good)
             # SOLUTION 1: Use MultiThreadedExecutor and assign the callbacks different callback groups (by default, they all use the same). Then its allowed to block the callback!
             # SOLUTION 2 (our choice): Use call_async() and setup a callback for when the future is done (i.e. completety non-blocking and asyncronoues)
             # rclpy.spin_until_future_complete(self, future,) #timeout_sec=SYNC_VISITED_WAYPOINTS_TIMEOUT) # This is blocking
             future.add_done_callback(self.sync_visited_waypoints_client_future_callback)
-        
-
-            # #print(f"Future done: {future.result()}")
-            # if future.result() is not None:
-            #     response = future.result()
-            #     self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
-            #     # Update our own visited_waypoints to the union of both lists
-            #     self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
-            # else:
-            #     self.get_logger().warn('Failed to receive visited waypoints. Drone might not exist or timeout occurred.')
 
     def sync_visited_waypoints_client_future_callback(self, future):
         if future.result() is not None:
             response = future.result()
-            self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
+            #self.get_logger().info(f"Received visited waypoints: {response.visited_waypoints}")
             # Update our own visited_waypoints to the union of both lists
             self.visited_waypoints = [a or b for a, b in zip(self.visited_waypoints, response.visited_waypoints)]
         else:
             self.get_logger().warn('Failed to receive visited waypoints. (Future is None)')
 
-
-    def sync_visited_waypoints_server_callback(self, request, response): 
+    def sync_visited_waypoints_server_callback(self, request, response): # service server callback
         # this is called when another drone requests our visited_waypoints list
         response.visited_waypoints = self.visited_waypoints
         #self.get_logger().info(f"Sending visited waypoints to requester: {response.visited_waypoints}")
@@ -320,21 +346,21 @@ class PX4_Controller(Node):
 
         #self.get_logger().info(f"SUSHIIII")
 
-        # Wait a second before starting offboard mode and arming (required by PX4)
-        if self.offboard_startup_counter == self.one_sec_loop_count:
+        # Wait atleast a second before starting offboard mode and arming (required by PX4)
+        wait_loops = self.one_sec_loop_count + self.start_flight_delay_loops
+        if self.offboard_startup_counter == wait_loops:
             self.engage_offboard_mode()
             self.arm()
             self.sync_visited_waypoints() # Sync visited waypoints with all other drones
             self.offboard_startup_counter = 9999  # Prevent re-entering this if statement
-        if self.offboard_startup_counter < self.one_sec_loop_count:
+        if self.offboard_startup_counter < wait_loops:
             self.offboard_startup_counter += 1
 
         # If PX4 is in offboard mode and map projection is initialized, run the main control loop
         if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
-
             tsunami_online_loop(self)
 
-        # Make sure control loop processing time does not exceed CONTROL_LOOP_DT:
+        # ERROR CHECKING - Make sure control loop processing time does not exceed CONTROL_LOOP_DT:
         end_time = self.get_clock().now()
         elapsed_time_s = (end_time - start_time).nanoseconds / 1e9
         if elapsed_time_s > CONTROL_LOOP_DT:
