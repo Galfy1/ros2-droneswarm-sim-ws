@@ -1,6 +1,8 @@
 from haversine import haversine, Unit
 import numpy as np
 
+from waypoint import Waypoint
+
 # See the following for helpfull lat/lon/bearing calculations:
 #    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
 
@@ -50,7 +52,6 @@ def tsunami_online_init(self):
     # self.start_pos_grappeded = False
     self.traversal_index = 0 # main index in traversal order
     self.traversal_index_commited = None # index in traversal order which is currently commited to be visited by this drone (i.e. reserved for this drone)
-    self.visited_waypoints = [False] * self.traversal_order_size # keep track of which waypoints have been visited
     self.get_logger().info("Tsunami online initialized")
 
 

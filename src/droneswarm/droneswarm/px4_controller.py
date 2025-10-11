@@ -8,7 +8,8 @@ import pickle
 
 from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop 
-from our_custom_interfaces.srv import SyncVisitedWaypoints
+from our_custom_interfaces.srv import SyncVisitedWaypoints, WaypointMessage # custom ROS2 interfaces
+from waypoint import Waypoint
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -133,14 +134,15 @@ class PX4_Controller(Node):
         
 
         # Read traversal order and home position from file (created in offline phase)
-        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'traversal_order_gps.pkl')
+        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'bf_traversal_gps.pkl')
         with open(pkl_path, 'rb') as fp:
             data_loaded = pickle.load(fp) 
         # for item in os.listdir(dir_path):
         #     self.get_logger().info(f"Found item in parent dir: {item}")
         self.home_pos_gps_from_offline = data_loaded['home_pos_gps']
-        self.traversal_order_gps = data_loaded['traversal_order_gps']
-        self.traversal_order_size = len(self.traversal_order_gps)
+        self.bf_traversal_gps = data_loaded['bf_traversal_gps']
+        self.bf_traversal_size = len(self.bf_traversal_gps)
+        self.visited_waypoints = [] # to keep track of which waypoints have been visited (list instead of set for better compatibility with ROS2 interfaces)
 
         #self.visited_waypoints = [False] * len(self.traversal_order_gps) # keep track of which waypoints have been visited
         
@@ -362,7 +364,7 @@ class PX4_Controller(Node):
 
         # If PX4 is in offboard mode and map projection is initialized, run the main control loop
         if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
-            tsunami_online_loop(self)
+            #tsunami_online_loop(self) # TODO HAR FJERNET MIDLERTIDIGT
 
         # ERROR CHECKING - Make sure control loop processing time does not exceed CONTROL_LOOP_DT:
         end_time = self.get_clock().now()

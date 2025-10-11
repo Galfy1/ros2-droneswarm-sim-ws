@@ -1,2 +1,2 @@
 ---
-bool[] visited_waypoints
+our_custom_interfaces/WaypointMessage[] visited_waypoints
