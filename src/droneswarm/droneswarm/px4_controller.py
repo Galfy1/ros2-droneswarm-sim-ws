@@ -8,8 +8,8 @@ import pickle
 
 from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop 
-from our_custom_interfaces.srv import SyncVisitedCells # custom ROS2 interfaces
-from our_custom_interfaces.msg import Cell # custom ROS2 interfaces
+from our_custom_interfaces.srv import SyncVisitedCells, RequestAllCurrentPaths # custom ROS2 interfaces
+from our_custom_interfaces.msg import Cell, Path # custom ROS2 interfaces
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -109,9 +109,11 @@ class PX4_Controller(Node):
 
         # Create services
         self.sync_visited_cells_service = self.create_service(SyncVisitedCells, self.ns_drone + '/sync_visited_cells', self.sync_visited_cells_server_callback)
+        self.request_all_current_paths_service = self.create_service(RequestAllCurrentPaths, self.ns_drone + '/request_all_current_paths', self.request_all_current_paths_server_callback)
 
         # Create clients
         # (for each service, we need a client for each drone)
+
         self.sync_visited_cells_clients = [] 
         for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
             if drone_id == self.instance_id:
@@ -120,8 +122,15 @@ class PX4_Controller(Node):
             self.sync_visited_cells_clients.append(self.create_client(SyncVisitedCells, self.ns_launch +"/"+ drone_ns + '/sync_visited_cells'))
             while not self.sync_visited_cells_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
                 self.get_logger().info('service not available, waiting again...')
-
-
+                
+        self.request_all_current_paths_clients = []
+        for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
+            if drone_id == self.instance_id:
+                continue # skip self
+            drone_ns = "drone_" + str(drone_id)
+            self.request_all_current_paths_clients.append(self.create_client(RequestAllCurrentPaths, self.ns_launch +"/"+ drone_ns + '/request_all_current_paths'))
+            while not self.request_all_current_paths_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
+                self.get_logger().info('service not available, waiting again...')
 
 
         # Initialize  variables for communication
@@ -154,6 +163,8 @@ class PX4_Controller(Node):
         self.vehicle_global_position = VehicleGlobalPosition()
         self.home_pos = HomePosition()
         self.map_projection_initialized = False
+        self.path_clear = True # flag to indicate if path is clear (i.e. no other drones are in the way)
+        self.path_clear_checked_count = 0 # counter to keep track of how many drones we have checked the path with
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
@@ -261,23 +272,58 @@ class PX4_Controller(Node):
 
     ##################### METHODS FOR COMMUNICATION #####################
 
-    # def request_all_current_paths(self): # TODO service
-    #     pass
 
-    # def receive_all_current_paths_callback(self): 
-    #     pass
+    def request_all_current_paths(self):
+        self.path_clear = False # assume path is not clear until we have checked with all other drones
+        self.path_clear_checked_count = 0 # counter to keep track of how many drones we have checked the path with
+
+        for client in self.request_all_current_paths_clients:
+            req = RequestAllCurrentPaths.Request()
+            future = client.call_async(req)
+            future.add_done_callback(self.request_all_current_paths_client_callback)
+
+    def request_all_current_paths_client_callback(self, future):
+
+        # current_path = Path(
+        #     from_lat=self.vehicle_global_position.lat,
+        #     from_lon=self.vehicle_global_position.lon,
+        #     to_lat=self.lat_target,
+        #     to_lon=self.lon_target
+        # )
+
+        # # # this will be called for each client when its future is done
+        # if future.result() is not None:
+        #     response = future.result()
+        #     answer_current_path = response.current_path
+
+        #     # Check if our current path intersects with the received path
+        #     # TODO
+        #     if current_path.intersects(answer_current_path):
+        #         self.get_logger().info(f"Path conflict detected with another drone: from ({answer_current_path.from_lat}, {answer_current_path.from_lon}) to ({answer_current_path.to_lat}, {answer_current_path.to_lon})")
+        #     else:
+        #         self.get_logger().info(f"No path conflict with another drone: from ({current_path.from_lat}, {current_path.from_lon}) to ({current_path.to_lat}, {current_path.to_lon})")
+        # else:
+        #     self.get_logger().warn('Failed to receive current path. (Future is None)')
 
 
+    def request_all_current_paths_server_callback(self, request, response):
+        # this is called when another drone requests our current path
+        response.current_path = Path(
+            from_lat=self.vehicle_global_position.lat,
+            from_lon=self.vehicle_global_position.lon,
+            to_lat=self.lat_target,
+            to_lon=self.lon_target
+        )
+        return response
+        
 
-    # def current_path_response(self): # TODO service
-    #     pass
 
 
 
 
     def broadcast_visited_cell(self, cell): # Publish Topic (its called broadcast for generilization with the tsunami implimentation for real hardware)
         # Broadcast that we have visited a cell by publishing to a topic
-        self.get_logger().info(f"Broadcasting visited cell {cell}")
+        #self.get_logger().info(f"Broadcasting visited cell {cell}")
         msg = Cell()
         msg.x = cell[0]
         msg.y = cell[1]
@@ -286,7 +332,7 @@ class PX4_Controller(Node):
 
     def visited_cell_callback(self, cell): # Topic subscriber callback
         # This is called when we receive a broadcast from another drone that it has visited a cell
-        self.get_logger().info(f"Received visited cell {cell}. Marking as visited locally.")
+        #self.get_logger().info(f"Received visited cell {cell}. Marking as visited locally.")
         self.visited_cells.add((cell.x, cell.y))
 
 

@@ -25,7 +25,7 @@ ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), 
 #                                     # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
 # SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
-ALLOW_DIAGONAL_NEIGHBORS = True  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
+ALLOW_DIAGONAL_PATH_PLANNING = False  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
 
 
 # TODO, her, i stedet for at pulibsh waypointet direkte, skal vi lave en spline interpolation, så dronen flyver glatt. aka en liste af waypoints den skal igennem for at komme til target waypoint
@@ -56,11 +56,20 @@ def tsunami_online_init(self):
     self.initial_alt_reached = False
     self.current_target_cell = self.home_cell_from_offline # initialize to home cell
     self.lat_target, self.lon_target = cell_to_gps(self, self.current_target_cell) # get initial target gps coordinates
+    self.flight_path_log = [(float(self.lat_target), float(self.lon_target))]  # list to log the flight path (lat, lon) tuples - for analysis later
+    self.flight_path_log_printed = False # to make sure we only print the flight path log once at the end
     self.get_logger().info("Tsunami online initialized")
 
 
 def all_cells_visited(self):
-    self.get_logger().info("Completed all cells.")
+    #self.get_logger().info("Completed all cells.")
+
+    # Print the flight path log
+    if not self.flight_path_log_printed:
+        self.flight_path_log_printed = True
+        self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
+
+
     pass # TODO
 
 
@@ -130,7 +139,7 @@ def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=False)
 
 def update_target_cell(self):
     # Find the next cell in the Breadth First Traversal
-    next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_NEIGHBORS)
+    next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_PATH_PLANNING)
     if next_cell is not None:
         # New target cell found!
         self.current_target_cell = next_cell
@@ -138,6 +147,7 @@ def update_target_cell(self):
         # Mark the next cell as "visited" (both locally and broadcast to other drones) - this is to "reserve" the cell for this drone
         self.visited_cells.add(next_cell)
         self.broadcast_visited_cell(next_cell) 
+        self.flight_path_log.append((float(self.lat_target), float(self.lon_target))) # log the flight path
     else:
         self.get_logger().info("No valid next cell found.")
         # this means all cells have been visited
