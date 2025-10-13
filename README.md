@@ -50,7 +50,7 @@ if clock skew exceed COM_OF_LOSS_T → failsafe.
 (due to wrong timestamps published to the /fmu/in/offboard_control_mode topic)
 
 ### SOLUTION  
-Setup nodes to use Gazebo clock instead of OS clock (requires ros_gz_bridge package). In this repo, everything that needs to be set up in the source code to achieve this has already been done (in the Launch file) - however, you still need a terminal to run ros_gz_bridge (see "A typical Work Setup" below)  
+Setup nodes to use Gazebo clock instead of OS clock (requires ros_gz_bridge package). In this repo, everything that needs to be set up in the source code to achieve this has already been done (in the Launch file) - however, you still need a terminal to run ros_gz_bridge (see "A typical Work Setup" below).  
 For more info: https://docs.px4.io/main/en/ros2/user_guide.html#ros-gazebo-and-px4-time-synchronization
 
 # A Typical Work Setup
