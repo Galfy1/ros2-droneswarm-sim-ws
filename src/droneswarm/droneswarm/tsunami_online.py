@@ -59,7 +59,7 @@ def tsunami_online_init(self):
     self.current_target_cell = self.home_cell_from_offline # initialize to home cell
     self.lat_target, self.lon_target = cell_to_gps(self, self.current_target_cell) # get initial target gps coordinates
     self.flight_path_log = [(float(self.lat_target), float(self.lon_target))]  # list to log the flight path (lat, lon) tuples - for analysis later
-    self.flight_path_log_printed = False # to make sure we only print the flight path log once at the end
+    self.flight_complete = False 
     self.waiting_for_path_check = False 
     self.get_logger().info("Tsunami online initialized")
 
@@ -68,25 +68,21 @@ def all_cells_visited(self):
     #self.get_logger().info("Completed all cells.")
 
     # Print the flight path log
-    if not self.flight_path_log_printed:
-        self.flight_path_log_printed = True
-        self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
+    if self.flight_complete:
+        return # already completed
 
-    # TODO return to home når done
+    # Return to home position and land:
+    #self.get_logger().info("Returning to home position and landing.")
 
-    # # Return to home position and land:
-    # self.get_logger().info("Returning to home position and landing.")
+    self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_VELOCITY, OPERATING_VELOCITY) # go to home position at ground level
 
-    # # offset landing position slightly to avoid collision with other drones landing at the same time.. VI KAN BRUGE INSTANCE_ID MEN DET KAN VI IKKE IRL.. SÅ SKAL DE HAVE UNIK ID??
-    # landing_lat = self.home_pos.lat
-    # landing_lon = self.home_pos.lon 
-
-    # self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_VELOCITY, OPERATING_VELOCITY) # go to home position at ground level
-
-
-    # NÅR DEN ER HJEMME ASDSAD
-
-    # self.land()
+    # # Check if we have reached home position:
+    # dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
+    # if dist_to_home < WAYPOINT_REACHED_TOLERANCE:
+    #     self.get_logger().info("Reached home position, landing now.")
+    #     self.land()
+    #     self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
+    #     self.flight_complete = True 
 
     pass # TODO
 
