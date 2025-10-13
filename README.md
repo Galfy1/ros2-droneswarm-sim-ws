@@ -1,7 +1,8 @@
 THIS CODE IS NOT COMPLETE
 
 # ros2-droneswarm-sim-ws
-ROS2 workspace made for PX4 Multi-Vehicle Simulation in Gazebo.
+ROS2 workspace made for PX4 Multi-Vehicle Simulation in Gazebo. For more info, see: https://docs.px4.io/main/en/ros2/user_guide.html#installation-setup.
+To run the sim, you also need QGC: https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html.  
 
 
 # Get Started
@@ -14,9 +15,10 @@ ROS2 workspace made for PX4 Multi-Vehicle Simulation in Gazebo.
     - source /opt/ros/humble/setup.bash
     - rosdep install -i --from-path src --rosdistro humble -y
     - python3 -m pip install -r requirements.txt
+    - sudo apt install ros-humble-ros-gzharmonic
 1. Build ROS2 workspace (stand in /ros2-droneswarm-sim-ws):
     - source /opt/ros/humble/setup.bash 
-    - colcon build --packages-up-to droneswarm
+    - colcon build
   
 NOTE: If rosdep... outputs an error, you might need to call "sudo rosdep init" and try again
 
@@ -77,6 +79,7 @@ For more info: https://docs.px4.io/main/en/ros2/user_guide.html#ros-gazebo-and-p
 - **Terminal 5** (to run/launch stuff):
     - STAND IN YOUR ROS2 WORKSPACE
     - source install/setup.bash
+    - RUN/LAUNCH WHATEVER YOU WANT
 - **Terminal 6** (Optional) (to build ROS2 workspace):
     - STAND IN YOUR ROS2 WORKSPACE
     - source /opt/ros/humble/setup.bash
