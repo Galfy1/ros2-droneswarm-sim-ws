@@ -62,6 +62,7 @@ def tsunami_online_init(self):
     self.flight_path_log = [(float(self.lat_target), float(self.lon_target))]  # list to log the flight path (lat, lon) tuples - for analysis later
     self.flight_complete = False 
     self.waiting_for_path_check = False 
+    self.land_stabelize_counter = 0
     self.get_logger().info("Tsunami online initialized")
 
 
@@ -74,17 +75,26 @@ def all_cells_visited(self):
 
     # Return to home position and land:
     #self.get_logger().info("Returning to home position and landing.")
+    # Calculate yaw to target waypoint (if enabled)
+    yaw_rad = 0.0
+    if ENABLE_YAW_TURNING:
+        yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target)
 
-    self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY) # go to home position at ground level
+    self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad) # go to home position at ground level
 
-    # TROR DEN DRIFTER TIL SIDEN NÅR DEN LANDER HVIS DEN IKKE ER HELT STILLE.
-    # # Check if we have reached home position:
-    # dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
-    # if dist_to_home < WAYPOINT_REACHED_TOLERANCE:
-    #     self.get_logger().info("Reached home position, landing now.")
-    #     self.land()
-    #     self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
-    #     self.flight_complete = True 
+    # Check if we have reached home position:
+    dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
+    if dist_to_home < WAYPOINT_REACHED_TOLERANCE:
+
+        # wait a bit to stabilize before landing:
+        if self.land_stabelize_counter < one_sec_loop_count*2:
+            self.land_stabelize_counter += 1
+            return
+
+        self.get_logger().info("Reached home position, landing now.")
+        self.land() # TODO den lander altså ret skævt... har sat den til 2sec til stablizie... så test lige det
+        self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
+        self.flight_complete = True 
 
     pass # TODO
 
