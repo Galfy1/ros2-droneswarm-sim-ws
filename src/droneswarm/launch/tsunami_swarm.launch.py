@@ -4,6 +4,11 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
 
+# To avoid failsafe and refusal-to-arm issues when running the sim in WSL (due to WSL clock skew), we set each node to use Gazebo time instead of System time.
+# (done by setting the 'use_sim_time' parameter to True)
+# This also require you to install ros-humble-ros-gzharmonic and run a terminal with a specific "ros2 run ros_gz_bridge..." command to publish the /clock topic.
+# For more info, see https://docs.px4.io/main/en/ros2/user_guide.html#ros-gazebo-and-px4-time-synchronization 
+
 
 def generate_launch_description():
 
@@ -26,7 +31,8 @@ def generate_launch_description():
             parameters=[
                 {'instance_id': 1}, # start from 1! not 0!
                 {'start_flight_delay_s': 0}, # delay before starting the flight (seconds)
-                {'max_drone_count': MAX_DRONE_COUNT}
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'use_sim_time': True}
             ]
         ),
         Node(
@@ -37,7 +43,8 @@ def generate_launch_description():
             parameters=[
                 {'instance_id': 2},
                 {'start_flight_delay_s': 5},
-                {'max_drone_count': MAX_DRONE_COUNT}
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'use_sim_time': True}
             ]
         ),
         Node(
@@ -48,7 +55,8 @@ def generate_launch_description():
             parameters=[
                 {'instance_id': 3}, 
                 {'start_flight_delay_s': 10},
-                {'max_drone_count': MAX_DRONE_COUNT}
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'use_sim_time': True}
             ]
         )
     ])

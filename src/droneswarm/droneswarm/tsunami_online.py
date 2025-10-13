@@ -75,7 +75,7 @@ def all_cells_visited(self):
     # Return to home position and land:
     #self.get_logger().info("Returning to home position and landing.")
 
-    self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_VELOCITY, OPERATING_VELOCITY) # go to home position at ground level
+    self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY) # go to home position at ground level
 
     # TROR DEN DRIFTER TIL SIDEN NÅR DEN LANDER HVIS DEN IKKE ER HELT STILLE.
     # # Check if we have reached home position:
