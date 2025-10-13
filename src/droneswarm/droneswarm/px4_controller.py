@@ -8,7 +8,7 @@ import pickle
 
 from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop, tsunami_does_paths_cross
-from our_custom_interfaces.srv import SyncVisitedCells, RequestAllCurrentPaths # custom ROS2 interfaces
+from our_custom_interfaces.srv import SyncVisitedCells, CheckAllCurrentPaths # custom ROS2 interfaces
 from our_custom_interfaces.msg import Cell, Path # custom ROS2 interfaces
 
 # TODO behold de relevant nedersteående links
@@ -35,7 +35,7 @@ package_name = 'droneswarm'
 
 CONTROL_LOOP_DT = 0.05  # seconds
 HOME_POS_TOLERANCE = 1e-4  # degrees # TODO ADJUST
-REQUEST_ALL_CURRENT_PATHS_TIMEOUT = 0.1 # seconds # TODO ADJUST
+CHECK_ALL_CURRENT_PATHS_TIMEOUT = 2.0 # seconds # TODO ADJUST
                                         # TODO, vi kan init med max antal drones. hvis den får responses for det antal, så er den færdig.
                                                 # hvis en eller flere droner ikke svarer, så er det timeouten der bestemmer hvornår den er færdig
                                                 #   hvis man ikke får svar fra en drone x antal gange i træk, så decrase antallen af droner i poolen med 1
@@ -44,6 +44,11 @@ REQUEST_ALL_CURRENT_PATHS_TIMEOUT = 0.1 # seconds # TODO ADJUST
                                                 #   PROBLEM: hvis vi har decreased antallet af droner i pooolen, så kan en drone der kommer online igen have svært ved at komme med igen (fordi vi kun venter på drone_pool_count_estimate svar)
                                                 #      Potential løsning: efter man har fået drone_pool_count_estimate svar, så venter man lige lidt ekstra, så hvis en drone kommer online igen, så kan den nå at være med.
                                                 # Det kræver også hver drone har et unikt ID, så vi kan se hvem svarer
+CHECK_ALL_CURRENT_PATHS_EXTRA_TIME = 0.5 # seconds. Extra time to wait after all estimated_drone_count responses are recieved (if estimated_drone_count < max_drone_count)
+                                         #          This allows for drones that might come online again to be included. (and estimated_drone_count is then adjusted accordingly)
+                                         #          (This setup only really makes sense if CHECK_ALL_CURRENT_PATHS_EXTRA_TIME < CHECK_ALL_CURRENT_PATHS_TIMEOUT)
+                                         #          (for more info regarding this setup, see comments further down in this file)
+        
 
 
 class PX4_Controller(Node):
@@ -109,7 +114,7 @@ class PX4_Controller(Node):
 
         # Create services
         self.sync_visited_cells_service = self.create_service(SyncVisitedCells, self.ns_drone + '/sync_visited_cells', self.sync_visited_cells_server_callback)
-        self.request_all_current_paths_service = self.create_service(RequestAllCurrentPaths, self.ns_drone + '/request_all_current_paths', self.request_all_current_paths_server_callback)
+        self.check_all_current_paths_service = self.create_service(CheckAllCurrentPaths, self.ns_drone + '/check_current_path', self.check_all_current_paths_server_callback)
 
         # Create clients
         # (for each service, we need a client for each drone)
@@ -123,13 +128,13 @@ class PX4_Controller(Node):
             while not self.sync_visited_cells_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
                 self.get_logger().info('service not available, waiting again...')
                 
-        self.request_all_current_paths_clients = []
+        self.check_all_current_paths_clients = []
         for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
             if drone_id == self.instance_id:
                 continue # skip self
             drone_ns = "drone_" + str(drone_id)
-            self.request_all_current_paths_clients.append(self.create_client(RequestAllCurrentPaths, self.ns_launch +"/"+ drone_ns + '/request_all_current_paths'))
-            while not self.request_all_current_paths_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
+            self.check_all_current_paths_clients.append(self.create_client(CheckAllCurrentPaths, self.ns_launch +"/"+ drone_ns + '/check_current_path'))
+            while not self.check_all_current_paths_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
                 self.get_logger().info('service not available, waiting again...')
 
 
@@ -166,12 +171,12 @@ class PX4_Controller(Node):
 
         self.map_projection_initialized = False
 
-        self.path_clear = True # flag to indicate if path is clear (i.e. no other drones are in the way)
-        self.path_clear_checked_count = 0 # counter to keep track of how many drones we have checked the path with
+        self.path_clear = None # flag to indicate if path is clear (i.e. no other drones are in the way)
+        self.path_clear_response_count = 0 # counter to keep track of how many drones we have checked the path with
         self.estimated_drone_count = self.max_drone_count # used for path checking
 
-        # Create a timer to publish control commands
-        self.timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
+        # Create a main loop timer
+        self.main_loop_timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
 
         # Init Tsunami
         tsunami_online_init(self)
@@ -276,42 +281,67 @@ class PX4_Controller(Node):
 
     ##################### METHODS FOR COMMUNICATION #####################
 
+    # Check All Current Paths setup in short:
+        # When we want to check if our path is clear, we call check_all_current_paths()
+        # This sends a request to all other drones, asking for their current path (from current position to current target)
+        # Each drone responds with its current path
+        # We then check if our path intersects with any of the received paths
+        # If we find an intersection, we set self.path_clear = False
+        # If we receive responses from all drones and find no intersections, we set self.path_clear = True
+        # If we do not receive responses from all drones within a timeout period, we assume the path is clear (self.path_clear = True), but we adjust our estimated_drone_count down accordingly.
+        # If we receive more responses than our estimated_drone_count, we adjust our estimated_drone_count accordingly (up to max_drone_count)
+        # If our estimated_drone_count is less than max_drone_count, we add an extra wait time after receiving all responses, to allow for drones that might come online again to be included.
 
-    def request_all_current_paths(self):
-        self.path_clear = False # assume path is not clear until we have checked with all other drones
-        self.path_clear_checked_count = 0 # counter to keep track of how many drones we have checked the path with
+    def check_all_current_paths(self):
+        self.path_clear = None # reset flag
+        self.path_clear_response_count = 0 # reset counter. (counter to keep track of how many drones we have checked the path with)
 
-        for client in self.request_all_current_paths_clients:
+        for client in self.check_all_current_paths_clients:
             req = RequestAllCurrentPaths.Request()
             future = client.call_async(req)
-            future.add_done_callback(self.request_all_current_paths_client_callback)
+            future.add_done_callback(self.check_all_current_paths_client_callback)
 
-    def request_all_current_paths_client_callback(self, future):
+        # Start a timeout timer
+        self.check_paths_timeout_timer = self.create_timer(CHECK_ALL_CURRENT_PATHS_TIMEOUT, self.check_all_current_paths_timeout)
 
+    def check_all_current_paths_client_callback(self, future):
 
-        #self.path_clear_checked_count += 1
+        if future.result() is not None:
+            response = future.result()
+            response_path = response.current_path
 
+            # Keep track of how many drones have responded
+            self.path_clear_response_count += 1
 
-        # TODO der der self.path_clear setup virker ikke... den er false som standar, men så ved dronen ikke hvis en path IKKE er clear (fordi den har udregnet en crossing)
+            # Adjust estimated drone count if we receive more responses than expected (up to a max of max_drone_count)
+            if self.path_clear_response_count > self.estimated_drone_count:
+                #self.get_logger().warn(f"Received more path responses ({self.path_clear_response_count}) than estimated drone count ({self.estimated_drone_count}). This should not happen.")
+                self.estimated_drone_count = self.path_clear_response_count if self.path_clear_response_count < self.max_drone_count else self.max_drone_count # adjust estimated drone count to match reality
+                return
 
-        # if future.result() is not None:
-        #     response = future.result()
-        #     response_path = response.current_path
+            # Check if our current path intersects with the received path
+            if tsunami_does_paths_cross(
+                (self.vehicle_global_position.lat, self.vehicle_global_position.lon),
+                (self.lat_target, self.lon_target),
+                (response_path.from_lat, response_path.from_lon),
+                (response_path.to_lat, response_path.to_lon)
+            ):
+                self.get_logger().info(f"Path conflict detected with another drone: from ({response_path.from_lat}, {response_path.from_lon}) to ({response_path.to_lat}, {response_path.to_lon})")
+                self.path_clear = False
+                self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is not clear
+            else:
+                self.get_logger().info(f"No path conflict with another drone: from ({self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}) to ({self.lat_target}, {self.lon_target})")
+                
+                if self.path_clear_response_count == self.estimated_drone_count:
+                    if self.estimated_drone_count != self.max_drone_count:
+                        # add some extra time to allow for drones that might come online again
+                        self.get_logger().info(f"All drones responded, but estimated drone count ({self.estimated_drone_count}) is less than max drone count ({self.max_drone_count}). Adding extra wait time to allow for drones that might come online again.")
+                        self.check_paths_timeout_timer.cancel() # stop the current timeout timer
+                        self.check_paths_extra_timer = self.create_timer(CHECK_ALL_CURRENT_PATHS_EXTRA_TIME, self.check_all_current_paths_extra_time)
+                    else :
+                        self.path_clear = True # path is clear if we have checked with all other drones and found no conflicts
+                        self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is clear
 
-        #     # Check if our current path intersects with the received path
-        #     if tsunami_does_paths_cross(
-        #         (self.vehicle_global_position.lat, self.vehicle_global_position.lon),
-        #         (self.lat_target, self.lon_target),
-        #         (response_path.from_lat, response_path.from_lon),
-        #         (response_path.to_lat, response_path.to_lon)
-        #     ):
-        #         self.get_logger().info(f"Path conflict detected with another drone: from ({response_path.from_lat}, {response_path.from_lon}) to ({response_path.to_lat}, {response_path.to_lon})")
-        #         self.path_clear = False
-        #     else:
-        #         self.get_logger().info(f"No path conflict with another drone: from ({self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}) to ({self.lat_target}, {self.lon_target})")
-        #         self.path_clear_checked_count += 1
-        #         if self.path_clear_checked_count == self.estimated_drone_count:
-        #             self.path_clear = True # path is clear if we have checked with all other drones and found no conflicts
 
         # TODO MANGLER NOGET TIMEOUT HVIS VI IKKE FÅR SVAR FRA ALLE DRONERNE.
         # TODO måske skal timeouten være i tsunami loopet?? lavet med en dt udregning ligesom det andet jeg har gjort
@@ -319,9 +349,27 @@ class PX4_Controller(Node):
         # TODO MANGLER NOGET MED AT JUSTERE estimated_drone_count HVIS VI IKKE FÅR SVAR FRA NOGLE DRONER (DECRASE MED 1 HVIS vi mangler svar fra 1 drone x antal gange i træk, increase med 1 hvis vi får svar igen)
         # TODO Issue... hvord kan en drone så reetner? så skal vi have endnu en timer (kort) der adder lidt tid, selv når alle svar er modtaget (hvis estimated_drone_count > max_drone_count)
 
+    def check_all_current_paths_timeout(self):
+        self.get_logger().warn("Request for all current paths timed out. (might be due to some drones being offline)")
+        # we want the timer to be oneshot:
+        self.check_paths_timeout_timer.cancel()
+
+        # How many responses do we miss?
+        missing_responses = self.estimated_drone_count - self.path_clear_response_count
+        self.estimated_drone_count -= missing_responses # adjust estimated drone count to match reality
+
+        self.path_clear = True # after timeout, we assume the path is clear (even though we are not 100% sure) - a drone might have gone offline since last check
+
+    def check_all_current_paths_extra_time(self):
+        # we want the timer to be oneshot:
+        self.check_paths_extra_timer.cancel()
+        self.get_logger().info("Extra wait time after all estimated drones responded is over.")
+
+        # after the extra time, we assume the path is clear (even though less than max_drone_count drones responded)
+        self.path_clear = True 
 
 
-    def request_all_current_paths_server_callback(self, request, response):
+    def check_all_current_paths_server_callback(self, request, response):
         # this is called when another drone requests our current path
         response.current_path = Path(
             from_lat=self.vehicle_global_position.lat,
