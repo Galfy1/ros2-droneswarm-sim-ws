@@ -25,6 +25,7 @@ ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), 
 # ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
 #                                     # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
 # SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
+ENABLE_PATH_CONFLICT_CHECK = False  # if True, the drone will check if its path conflicts with other drones and adjust altitude if needed
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
 ALLOW_DIAGONAL_PATH_PLANNING = False  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
 ALTITUDE_INCREASE_ON_PATH_CONFLICT = 5.0 # meters, how much to increase altitude if a path conflict is detected with another drone
@@ -290,19 +291,20 @@ def tsunami_online_loop(self):
 
     # Check if we need to increase altitude to avoid conflicting paths with other drones
     operating_altitude = OPERATING_ALTITUDE
-    if not self.waiting_for_path_check:
-        self.check_all_current_paths() 
-        self.waiting_for_path_check = True
-    if self.path_clear == None:
-        return # still waiting for path check to complete
-    elif self.path_clear == False:
-        self.get_logger().info("Path not clear, increasing altitude to avoid conflict.")
-        operating_altitude -= ALTITUDE_INCREASE_ON_PATH_CONFLICT # increase altitude by 5 meters to avoid conflict
-        # wait until we have reached the increased altitude (within tolerance):
-        if self.vehicle_local_position.z > operating_altitude + ALTITUDE_TOLERENCE:
-            self.publish_position_setpoint_global(self.vehicle_global_position.lat, self.vehicle_global_position.lon, operating_altitude, OPERATING_VELOCITY)
-            return 
-    self.waiting_for_path_check = False
+    if ENABLE_PATH_CONFLICT_CHECK:
+        if not self.waiting_for_path_check:
+            self.check_all_current_paths() 
+            self.waiting_for_path_check = True
+        if self.path_clear == None:
+            return # still waiting for path check to complete
+        elif self.path_clear == False:
+            #self.get_logger().info("Path not clear, increasing altitude to avoid conflict.")
+            operating_altitude -= ALTITUDE_INCREASE_ON_PATH_CONFLICT # increase altitude by 5 meters to avoid conflict
+            # wait until we have reached the increased altitude (within tolerance):
+            if self.vehicle_local_position.z > operating_altitude + ALTITUDE_TOLERENCE:
+                self.publish_position_setpoint_global(self.vehicle_global_position.lat, self.vehicle_global_position.lon, operating_altitude, OPERATING_VELOCITY)
+                return 
+        self.waiting_for_path_check = False
 
     # Publish position setpoint to target waypoint
     self.publish_position_setpoint_global(self.lat_target, self.lon_target, operating_altitude, OPERATING_VELOCITY, yaw_rad)
