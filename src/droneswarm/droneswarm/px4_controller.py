@@ -316,7 +316,7 @@ class PX4_Controller(Node):
             self.path_clear_response_count += 1
 
             # Adjust estimated neighbor count if we receive more responses than expected (up to a max of max_neighbor_count)
-            self.get_logger().info(f"estimated_neighbor_count: {self.estimated_neighbor_count}, path_clear_response_count: {self.path_clear_response_count}")
+            #self.get_logger().info(f"estimated_neighbor_count: {self.estimated_neighbor_count}, path_clear_response_count: {self.path_clear_response_count}")
             if self.path_clear_response_count > self.estimated_neighbor_count:
                 #self.get_logger().warn(f"Received more path responses ({self.path_clear_response_count}) than estimated neighbor count ({self.estimated_neighbor_count}). This should not happen.")
                 self.get_logger().info(f"MONSTER")

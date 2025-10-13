@@ -20,6 +20,7 @@ import math
 # ADJUSTABLE PARAMETERS
 OPERATING_ALTITUDE = -20.0  # meters (remeber, NED coordinates: down is positive)
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
+ALTITUDE_TOLERENCE = 0.5  # meters, how close we need to be to the operating altitude to consider it "reached"
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
 # ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
 #                                     # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
@@ -71,6 +72,21 @@ def all_cells_visited(self):
         self.flight_path_log_printed = True
         self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
 
+    # TODO return to home når done
+
+    # # Return to home position and land:
+    # self.get_logger().info("Returning to home position and landing.")
+
+    # # offset landing position slightly to avoid collision with other drones landing at the same time.. VI KAN BRUGE INSTANCE_ID MEN DET KAN VI IKKE IRL.. SÅ SKAL DE HAVE UNIK ID??
+    # landing_lat = self.home_pos.lat
+    # landing_lon = self.home_pos.lon 
+
+    # self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_VELOCITY, OPERATING_VELOCITY) # go to home position at ground level
+
+
+    # NÅR DEN ER HJEMME ASDSAD
+
+    # self.land()
 
     pass # TODO
 
@@ -254,7 +270,7 @@ def tsunami_online_loop(self):
 
  
     # Wait until drone have reached  operating altitude
-    if self.vehicle_local_position.z > OPERATING_ALTITUDE+0.5 and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
+    if self.vehicle_local_position.z > OPERATING_ALTITUDE+ALTITUDE_TOLERENCE and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
         self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY)
         return
     else:
@@ -284,8 +300,12 @@ def tsunami_online_loop(self):
     if self.path_clear == None:
         return # still waiting for path check to complete
     elif self.path_clear == False:
-        operating_altitude -= ALTITUDE_INCREASE_ON_PATH_CONFLICT # increase altitude by 5 meters to avoid conflict
         self.get_logger().info("Path not clear, increasing altitude to avoid conflict.")
+        operating_altitude -= ALTITUDE_INCREASE_ON_PATH_CONFLICT # increase altitude by 5 meters to avoid conflict
+        # wait until we have reached the increased altitude (within tolerance):
+        if self.vehicle_local_position.z > operating_altitude + ALTITUDE_TOLERENCE:
+            self.publish_position_setpoint_global(self.vehicle_global_position.lat, self.vehicle_global_position.lon, operating_altitude, OPERATING_VELOCITY)
+            return 
     self.waiting_for_path_check = False
 
     # Publish position setpoint to target waypoint
