@@ -1,8 +1,11 @@
 THIS CODE IS NOT COMPLETE
 
 # ros2-droneswarm-sim-ws
-ROS2 workspace made for a drone swarm simulation using PX4/ROS2 Multi-Vehicle Simulation in Gazebo. For more info, see: https://docs.px4.io/main/en/ros2/user_guide.html#installation-setup.
-To run the sim, you also need QGC: https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html.  
+ROS2 workspace made for a drone swarm simulation using PX4/ROS2 Multi-Vehicle Simulation in Gazebo.  
+For more info, see: https://docs.px4.io/main/en/ros2/user_guide.html#installation-setup.
+  
+To run the simulation, you also need QGC:
+- https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html.  
 
 
 # Get Started
