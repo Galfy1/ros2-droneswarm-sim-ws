@@ -77,6 +77,7 @@ def all_cells_visited(self):
 
     self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_VELOCITY, OPERATING_VELOCITY) # go to home position at ground level
 
+    # TROR DEN DRIFTER TIL SIDEN NÅR DEN LANDER HVIS DEN IKKE ER HELT STILLE.
     # # Check if we have reached home position:
     # dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
     # if dist_to_home < WAYPOINT_REACHED_TOLERANCE:
