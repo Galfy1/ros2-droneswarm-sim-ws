@@ -1,4 +1,4 @@
-from_lat: float
-from_lon: float
-to_lat: float
-to_lon: float
+float64 from_lat
+float64 from_lon
+float64 to_lat
+float64 to_lon

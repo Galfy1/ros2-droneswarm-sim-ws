@@ -18,7 +18,7 @@ import math
 # TODO vi skal have lavet det der spline halløj
 
 # ADJUSTABLE PARAMETERS
-OPERATING_ALTITUDE = -20.0  # meters
+OPERATING_ALTITUDE = -20.0  # meters (remeber, NED coordinates: down is positive)
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
 # ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
@@ -26,6 +26,7 @@ ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), 
 # SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
 ALLOW_DIAGONAL_PATH_PLANNING = False  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
+ALTITUDE_INCREASE_ON_PATH_CONFLICT = 5.0 # meters, how much to increase altitude if a path conflict is detected with another drone
 
 
 # TODO, her, i stedet for at pulibsh waypointet direkte, skal vi lave en spline interpolation, så dronen flyver glatt. aka en liste af waypoints den skal igennem for at komme til target waypoint
@@ -58,6 +59,7 @@ def tsunami_online_init(self):
     self.lat_target, self.lon_target = cell_to_gps(self, self.current_target_cell) # get initial target gps coordinates
     self.flight_path_log = [(float(self.lat_target), float(self.lon_target))]  # list to log the flight path (lat, lon) tuples - for analysis later
     self.flight_path_log_printed = False # to make sure we only print the flight path log once at the end
+    self.waiting_for_path_check = False 
     self.get_logger().info("Tsunami online initialized")
 
 
@@ -98,7 +100,50 @@ def all_cells_visited(self):
 def tsunami_does_paths_cross(path1_from, path1_to, path2_from, path2_to):
     # # Check if two line segments (paths) cross each other
     # # Each path is defined by a "from" and "to" GPS coordinate (lat, lon)
-    # # Using the algorithm from https://stackoverflow.com/a/1968345
+    # # Using the algorithm from https://stackoverflow.com/a/1968345 (from "Tricks of the Windows Game Programming Gurus" by André LaMothe, 2002)
+
+
+
+
+    """
+    Returns (True, (ix, iy)) if lines p0-p1 and p2-p3 intersect, otherwise (False, None).
+    Each point is a tuple (x, y).
+    """
+    # extract the 4 points (coordinates)
+    p0_x, p0_y = path1_from
+    p1_x, p1_y = path1_to
+    p2_x, p2_y = path2_from
+    p3_x, p3_y = path2_to
+
+    # Calculate the direction vectors of the lines
+    s1_x = p1_x - p0_x
+    s1_y = p1_y - p0_y
+    s2_x = p3_x - p2_x
+    s2_y = p3_y - p2_y
+
+    denom = (-s2_x * s1_y + s1_x * s2_y)
+    if denom == 0:
+        return False #, None  # Parallel or coincident lines
+
+    s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / denom
+    t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / denom
+
+    if 0 <= s <= 1 and 0 <= t <= 1:
+        # Intersection point
+        # ix = p0_x + (t * s1_x)
+        # iy = p0_y + (t * s1_y)
+        return True #, (ix, iy)
+
+    return False #, None
+
+
+
+
+
+
+
+
+
 
     # def orientation(p, q, r):
     #     val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1])
@@ -146,7 +191,6 @@ def tsunami_does_paths_cross(path1_from, path1_to, path2_from, path2_to):
 # visited_cells: set of (x,y) tuples
 # allow_diagonal: bool, if True, diagonal neighbors are considered neighbors
 def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=False):
-
 
     # Find current location in bft_cells
     if current_cell not in bft_cells:
@@ -208,9 +252,6 @@ def cell_to_gps(self, cell):
 
 def tsunami_online_loop(self):
 
-
-    # POTENTIEL GRUND TIL WEIRD FLIGHT PATH:
-
  
     # Wait until drone have reached  operating altitude
     if self.vehicle_local_position.z > OPERATING_ALTITUDE+0.5 and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
@@ -235,8 +276,20 @@ def tsunami_online_loop(self):
     if ENABLE_YAW_TURNING:
         yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target) # using the Great-circle Bearing Formula
 
+    # Check if we need to increase altitude to avoid conflicting paths with other drones
+    operating_altitude = OPERATING_ALTITUDE
+    if not self.waiting_for_path_check:
+        self.check_all_current_paths() 
+        self.waiting_for_path_check = True
+    if self.path_clear == None:
+        return # still waiting for path check to complete
+    elif self.path_clear == False:
+        operating_altitude -= ALTITUDE_INCREASE_ON_PATH_CONFLICT # increase altitude by 5 meters to avoid conflict
+        self.get_logger().info("Path not clear, increasing altitude to avoid conflict.")
+    self.waiting_for_path_check = False
+
     # Publish position setpoint to target waypoint
-    self.publish_position_setpoint_global(self.lat_target, self.lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
+    self.publish_position_setpoint_global(self.lat_target, self.lon_target, operating_altitude, OPERATING_VELOCITY, yaw_rad)
 
 
 
