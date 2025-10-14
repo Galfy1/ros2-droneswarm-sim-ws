@@ -78,6 +78,7 @@ For more info: https://docs.px4.io/main/en/ros2/user_guide.html#ros-gazebo-and-p
 - **Terminal 3** (start agent + dds server):
     - MicroXRCEAgent udp4 -p 8888
 - **Terminal 4** (run ros_gz_bridge for using Gazebo as time source for nodes):
+    - source /opt/ros/humble/setup.bash
     - ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock
 - **Terminal 5** (to run/launch stuff):
     - STAND IN YOUR ROS2 WORKSPACE
