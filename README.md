@@ -46,17 +46,25 @@ If you need a Python package that is NOT part of rosdep
 - add it to requirements.txt
 
 # About Time
-### PROBLEM  
+## About WSL Clock Skew
+### PROBLEM
 WSL clock skew can sometimes lead to very weird behaviour in the sim. These issues are very hard to debug!  
 Symptoms include:
 - Drones randomly refusing to arm
 - Constant failsafes due to “No offboard signal”
-if clock skew exceed COM_OF_LOSS_T → failsafe.  
+if clock skew exceeds COM_OF_LOSS_T → failsafe.  
 (due to wrong timestamps published to the /fmu/in/offboard_control_mode topic)
 
 ### SOLUTION  
 Setup nodes to use Gazebo clock instead of OS clock (requires ros_gz_bridge package). In this repo, everything that needs to be set up in the source code to achieve this has already been done (in the Launch file) - however, you still need a terminal to run ros_gz_bridge (see "A typical Work Setup" below).  
 For more info: https://docs.px4.io/main/en/ros2/user_guide.html#ros-gazebo-and-px4-time-synchronization
+
+## Increase Sim Speed
+To increase sim speed, add the PX4_SIM_SPEED_FACTOR=<speed_factor> flag to the command used when spawning the dds clients (see "A Typical Work Setup" below). Set the speed_factor to whatever you want, however your computer might not be able to run it if set to high. From PX4 doc: "Powerful desktop machines can usually run the simulation at around 6-10x, for notebooks the achieved rates can be around 3-4x". However, increasing the speed seems to slightly alter the behavior of the drones. For the highest accuracy, 1× speed seems to be best.
+
+_**NOTE:** Increasing this value too high for your system might lead to a broken PX4-Autopilot installation.
+Symptoms: Drone refusing to arm, with QGC errors like "Navigation error: No valid position estimate" or "Navigation error: No valid global position estimate".
+To fix this, delete your PX4-Autopilot folder and reinstall it according to the "Install PX4" section in this guide: [PX4 ROS2 User Guide](https://docs.px4.io/main/en/ros2/user_guide.html#install-px4)._
 
 # A Typical Work Setup
 
@@ -65,16 +73,15 @@ For more info: https://docs.px4.io/main/en/ros2/user_guide.html#ros-gazebo-and-p
     - ./QGroundControl-x86_64.AppImage
 - **Terminal 2** (multiple drones):
     - (multiple individual terminals)
-    - (set SIM_SPEED_FACTOR to whatever you want - and computer can run)
     - Terminal 2a (gazebo simulation + dds client)
         - cd ~/PX4-Autopilot
-        - PX4_SYS_AUTOSTART=4001 PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands PX4_SIM_SPEED_FACTOR=5 ./build/px4_sitl_default/bin/px4 -i 1
+        - PX4_SYS_AUTOSTART=4001 PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands PX4_SIM_SPEED_FACTOR=1 ./build/px4_sitl_default/bin/px4 -i 1
     - Terminal 2b (dds client)
         - cd ~/PX4-Autopilot
-        - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,1" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands  PX4_SIM_SPEED_FACTOR=5 ./build/px4_sitl_default/bin/px4 -i 2
+        - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,1" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands  PX4_SIM_SPEED_FACTOR=1 ./build/px4_sitl_default/bin/px4 -i 2
     - Terminal 2c (dds client)
       - cd ~/PX4-Autopilot
-      - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,2" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands  PX4_SIM_SPEED_FACTOR=5 ./build/px4_sitl_default/bin/px4 -i 3
+      - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,2" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands  PX4_SIM_SPEED_FACTOR=1 ./build/px4_sitl_default/bin/px4 -i 3
   - …
 - **Terminal 3** (start agent + dds server):
     - MicroXRCEAgent udp4 -p 8888
