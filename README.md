@@ -65,15 +65,16 @@ For more info: https://docs.px4.io/main/en/ros2/user_guide.html#ros-gazebo-and-p
     - ./QGroundControl-x86_64.AppImage
 - **Terminal 2** (multiple drones):
     - (multiple individual terminals)
+    - (set SIM_SPEED_FACTOR to whatever you want - and computer can run)
     - Terminal 2a (gazebo simulation + dds client)
         - cd ~/PX4-Autopilot
-        - PX4_SYS_AUTOSTART=4001 PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands ./build/px4_sitl_default/bin/px4 -i 1
+        - PX4_SYS_AUTOSTART=4001 PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands PX4_SIM_SPEED_FACTOR=5 ./build/px4_sitl_default/bin/px4 -i 1
     - Terminal 2b (dds client)
         - cd ~/PX4-Autopilot
-        - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,1" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands ./build/px4_sitl_default/bin/px4 -i 2
+        - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,1" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands  PX4_SIM_SPEED_FACTOR=5 ./build/px4_sitl_default/bin/px4 -i 2
     - Terminal 2c (dds client)
       - cd ~/PX4-Autopilot
-      - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,2" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands ./build/px4_sitl_default/bin/px4 -i 3
+      - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,2" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands  PX4_SIM_SPEED_FACTOR=5 ./build/px4_sitl_default/bin/px4 -i 3
   - …
 - **Terminal 3** (start agent + dds server):
     - MicroXRCEAgent udp4 -p 8888
