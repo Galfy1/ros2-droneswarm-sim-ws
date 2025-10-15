@@ -76,6 +76,7 @@ To fix this, delete your PX4-Autopilot folder and reinstall it according to the 
     - Terminal 2a (gazebo simulation + dds client)
         - cd ~/PX4-Autopilot
         - PX4_SYS_AUTOSTART=4001 PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands PX4_SIM_SPEED_FACTOR=1 ./build/px4_sitl_default/bin/px4 -i 1
+    - (be sure the gazebo simulation has completely launched before spawning additional drones)
     - Terminal 2b (dds client)
         - cd ~/PX4-Autopilot
         - PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,1" PX4_SIM_MODEL=gz_x500 PX4_GZ_WORLD=baylands  PX4_SIM_SPEED_FACTOR=1 ./build/px4_sitl_default/bin/px4 -i 2
