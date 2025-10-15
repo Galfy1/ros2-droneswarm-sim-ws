@@ -18,7 +18,7 @@ import math
 # TODO vi skal have lavet det der spline halløj
 
 # ADJUSTABLE PARAMETERS
-OPERATING_ALTITUDE = -20.0  # meters (remeber, NED coordinates: down is positive)
+OPERATING_ALTITUDE = -25.0  # meters (remeber, NED coordinates: down is positive)
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ALTITUDE_TOLERENCE = 0.5  # meters, how close we need to be to the operating altitude to consider it "reached"
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
@@ -76,6 +76,10 @@ def all_cells_visited(self):
     # Return to home position and land:
     #self.get_logger().info("Returning to home position and landing.")
     # Calculate yaw to target waypoint (if enabled)
+
+    self.lat_target = self.home_pos.lat 
+    self.lon_target = self.home_pos.lon
+
     yaw_rad = 0.0
     if ENABLE_YAW_TURNING:
         yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target)
@@ -84,10 +88,10 @@ def all_cells_visited(self):
 
     # Check if we have reached home position:
     dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
-    if dist_to_home < WAYPOINT_REACHED_TOLERANCE:
+    if dist_to_home < 0.3:  # within 30cm of home position
 
         # wait a bit to stabilize before landing:
-        if self.land_stabelize_counter < one_sec_loop_count*2:
+        if self.land_stabelize_counter < self.one_sec_loop_count*2:
             self.land_stabelize_counter += 1
             return
 
