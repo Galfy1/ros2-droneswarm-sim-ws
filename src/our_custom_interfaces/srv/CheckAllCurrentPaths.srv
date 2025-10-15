@@ -1,2 +1,3 @@
 ---
 our_custom_interfaces/Path current_path
+bool at_path_conflict_alt

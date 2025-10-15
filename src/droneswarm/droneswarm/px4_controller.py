@@ -176,6 +176,9 @@ class PX4_Controller(Node):
         self.max_neighbor_count = self.max_drone_count - 1 # used for path checking
         self.estimated_neighbor_count = self.max_neighbor_count # used for path checking
 
+        self.at_path_conflict_alt = False # Flag to indicate if we are at the increased altitude to avoid path conflict.
+                                          # This setup only works if two drones are involved in the path conflict. A solution to handle path conflicts involving an arbitrary number of drones would make the implementation quite a bit more complex.
+
         # Create a main loop timer
         self.main_loop_timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
 
@@ -311,6 +314,7 @@ class PX4_Controller(Node):
         if future.result() is not None:
             response = future.result()
             response_path = response.current_path
+            response_at_path_conflict_alt = response.at_path_conflict_alt
 
             # Keep track of how many drones have responded
             self.path_clear_response_count += 1
@@ -332,6 +336,11 @@ class PX4_Controller(Node):
             ):
                 self.get_logger().info(f"Path conflict detected with another drone: from ({response_path.from_lat}, {response_path.from_lon}) to ({response_path.to_lat}, {response_path.to_lon})")
                 self.path_clear = False
+                # If the other drone is at an increased altitude to avoid a path conflict, we assume it is avoiding us, so we dont need to increase our altitude:
+                if(not response_at_path_conflict_alt):
+                    self.at_path_conflict_alt = True 
+                else:
+                    self.at_path_conflict_alt = False 
                 self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is not clear
             else:
                 #self.get_logger().info(f"No path conflict with another drone: from ({self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}) to ({self.lat_target}, {self.lon_target})")
@@ -344,6 +353,7 @@ class PX4_Controller(Node):
                         self.check_paths_extra_timer = self.create_timer(CHECK_ALL_CURRENT_PATHS_EXTRA_TIME, self.check_all_current_paths_extra_time)
                     else :
                         self.path_clear = True # path is clear if we have checked with all other drones and found no conflicts
+                        self.at_path_conflict_alt = False # reset flag
                         self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is clear
 
     def check_all_current_paths_timeout(self):
@@ -356,6 +366,7 @@ class PX4_Controller(Node):
         self.estimated_neighbor_count -= missing_responses # adjust estimated neighbor count to match reality
 
         self.path_clear = True # after timeout, we assume the path is clear (even though we are not 100% sure) - a drone might have gone offline since last check
+        self.at_path_conflict_alt = False # reset flag
 
     def check_all_current_paths_extra_time(self):
         # we want the timer to be oneshot:
@@ -363,7 +374,8 @@ class PX4_Controller(Node):
         #self.get_logger().info("Extra wait time after all estimated drones responded is over.")
 
         # after the extra time, we assume the path is clear (even though less than max_neighbor_count drones responded)
-        self.path_clear = True 
+        self.path_clear = True
+        self.at_path_conflict_alt = False # reset flag
 
     def check_all_current_paths_server_callback(self, request, response):
         # this is called when another drone requests our current path
@@ -371,8 +383,9 @@ class PX4_Controller(Node):
             from_lat=self.vehicle_global_position.lat,
             from_lon=self.vehicle_global_position.lon,
             to_lat=self.lat_target,
-            to_lon=self.lon_target
+            to_lon=self.lon_target,
         )
+        response.at_path_conflict_alt = self.at_path_conflict_alt
         return response
         
 
