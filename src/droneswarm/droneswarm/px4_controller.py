@@ -311,6 +311,11 @@ class PX4_Controller(Node):
 
     def check_all_current_paths_client_callback(self, future):
 
+        if self.waiting_for_path_check == False:
+            # we are no longer waiting for path check to complete! ignore all responses
+            # (timeout has already been cancelled at this point)
+            return 
+
         if future.result() is not None:
             response = future.result()
             response_path = response.current_path
@@ -337,7 +342,7 @@ class PX4_Controller(Node):
                 self.get_logger().info(f"Path conflict detected with another drone: from ({response_path.from_lat}, {response_path.from_lon}) to ({response_path.to_lat}, {response_path.to_lon})")
                 self.path_clear = False
                 # If the other drone is at an increased altitude to avoid a path conflict, we assume it is avoiding us, so we dont need to increase our altitude:
-                if(not response_at_path_conflict_alt):
+                if(response_at_path_conflict_alt == False):
                     self.at_path_conflict_alt = True 
                 else:
                     self.at_path_conflict_alt = False 
