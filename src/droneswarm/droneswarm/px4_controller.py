@@ -312,8 +312,8 @@ class PX4_Controller(Node):
 
     def check_all_current_paths_client_callback(self, future):
 
-        if self.waiting_for_path_check == False:
-            # we are no longer waiting for path check to complete! ignore all responses
+        if self.path_clear != None:
+            # we have already decided if the path are clear or not! ignore all further responses for this check (path_clear i reset to None at next path check)
             # (timeout has already been cancelled at this point)
             return 
 

@@ -260,9 +260,6 @@ def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=False)
 
 def update_target_cell(self):
 
-    # if ENABLE_PATH_CONFLICT_CHECK: // TODO 
-    #     self.at_path_conflict_alt = False # reset altitude increase flag - we will be re-evaluating in the next loop
-
 
     # Find the next cell in the Breadth First Traversal
     next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_PATH_PLANNING)
