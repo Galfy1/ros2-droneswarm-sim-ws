@@ -367,8 +367,11 @@ def tsunami_online_loop(self):
             self.trigger_path_check = False # reset flag
             self.check_all_current_paths() # will set self.path_clear (to something other than None) when it completes (also, self.at_path_conflict_alt will be set to signal if we need to increase altitude or not)
             self.waiting_for_path_check = True
-           
-        if self.waiting_for_path_check: 
+        
+        
+        if self.waiting_for_path_check:
+        # Question: why not just use path_clear instead of waiting_for_path_check?
+        # Answer: we want self.path_clear to only be controlled by check_all_current_paths() and its callbacks - therefore, we introduce the waiting_for_path_check variable here, that we can reset whenever we want (i.e. here)
             if self.path_clear == None:
                 return # wait for the path check to complete
             # we now got an answer from the path check!
