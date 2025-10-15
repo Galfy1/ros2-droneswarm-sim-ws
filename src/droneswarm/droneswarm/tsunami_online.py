@@ -62,9 +62,11 @@ def tsunami_online_init(self):
     self.lat_target, self.lon_target = cell_to_gps(self, self.current_target_cell) # get initial target gps coordinates
     self.flight_path_log = [(float(self.lat_target), float(self.lon_target))]  # list to log the flight path (lat, lon) tuples - for analysis later
     self.flight_complete = False 
+    self.trigger_path_check = False
     self.waiting_for_path_check = False 
     self.land_stabelize_counter = 0
     self.operating_altitude = OPERATING_ALTITUDE # current operating altitude (can be increased to avoid path conflicts)
+
     self.get_logger().info("Tsunami online initialized")
 
 
@@ -254,6 +256,11 @@ def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=False)
 
 
 def update_target_cell(self):
+
+    # if ENABLE_PATH_CONFLICT_CHECK: // TODO 
+    #     self.at_path_conflict_alt = False # reset altitude increase flag - we will be re-evaluating in the next loop
+
+
     # Find the next cell in the Breadth First Traversal
     next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_PATH_PLANNING)
     if next_cell is not None:
@@ -308,10 +315,10 @@ def cell_to_gps(self, cell):
 
 def set_correct_operating_altitude(self):
     # we now set our altitude (if we need to increase it or not)
-    if self.path_clear == False and self.at_path_conflict_alt == True: 
-        self.operating_altitude = OPERATING_ALTITUDE - ALTITUDE_INCREASE_ON_PATH_CONFLICT
+    if ENABLE_PATH_CONFLICT_CHECK and self.at_path_conflict_alt == True: 
+        self.operating_altitude = OPERATING_ALTITUDE - ALTITUDE_INCREASE_ON_PATH_CONFLICT # increased altitude to avoid other drone!
     else:
-        self.operating_altitude = OPERATING_ALTITUDE
+        self.operating_altitude = OPERATING_ALTITUDE # normal altitude
 
     # make sure we are at the desired altitude
     if self.vehicle_local_position.z > self.operating_altitude + ALTITUDE_TOLERENCE:
@@ -326,17 +333,16 @@ def set_correct_operating_altitude(self):
 
 def tsunami_online_loop(self):
 
-    # Wait until drone have reached initial operating altitude
-    if self.vehicle_local_position.z > OPERATING_ALTITUDE+ALTITUDE_TOLERENCE and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
-        self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY)
-        return
-    else:
-        self.initial_alt_reached = True
+    # # Wait until drone have reached initial operating altitude
+    # if self.vehicle_local_position.z > OPERATING_ALTITUDE+ALTITUDE_TOLERENCE and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
+    #     self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY)
+    #     return
+    # else:
+    #     self.initial_alt_reached = True
 
-    # Make sure we are at the correct operating altitude (increased if needed to avoid path conflicts)
-    if ENABLE_PATH_CONFLICT_CHECK:
-        if set_correct_operating_altitude(self):
-            return # wait until we have reached the correct operating altitude
+    # Make sure we are at the correct operating altitude before continuing (increased if needed to avoid path conflicts)
+    if set_correct_operating_altitude(self):
+        return # wait until we have reached the correct operating altitude
 
     # Check if all cells have been visited
     if len(self.visited_cells) >= self.bf_traversal_size:
@@ -349,28 +355,30 @@ def tsunami_online_loop(self):
         self.get_logger().info(f"Reached cell: {self.current_target_cell} at lat: {self.lat_target}, lon: {self.lon_target}")
         update_target_cell(self) # Update to next target cell
 
+        # We have a new waypoint target - therefore, trigger a new path check:
+        self.trigger_path_check = True 
+
+
+# TODO HUSK AT SLET UBRUGTE VARIABLER (e.g. self.waiting_for_path_check) OG TILFØJ self.path_check_running
+
+    if ENABLE_PATH_CONFLICT_CHECK:
+
+        if self.trigger_path_check:
+            self.trigger_path_check = False # reset flag
+            self.check_all_current_paths() # will set self.path_clear (to something other than None) when it completes (also, self.at_path_conflict_alt will be set to signal if we need to increase altitude or not)
+            self.waiting_for_path_check = True
+           
+        if self.waiting_for_path_check: 
+            if self.path_clear == None:
+                return # wait for the path check to complete
+            # we now got an answer from the path check!
+            self.waiting_for_path_check = False # hvorfor skal vi bruge det her flag? når vi bare kan tjekke path_clear?
+                
+
     # Calculate yaw to target waypoint (if enabled)
     yaw_rad = 0.0
     if ENABLE_YAW_TURNING:
         yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target) # using the Great-circle Bearing Formula
-
-
-
-
-    # Check if we need to increase altitude to avoid conflicting paths with other drones
-    if ENABLE_PATH_CONFLICT_CHECK:
-        # If we are not already waiting for a path check to complete, start a new path check
-        if self.waiting_for_path_check == False:
-            self.check_all_current_paths() # will set self.path_clear (to something other than None) when it completes (also, self.at_path_conflict_alt will be set to signal if we need to increase altitude or not)
-            self.waiting_for_path_check = True
-            return # wait for path check to complete
-        if self.path_clear != None:  # we got an answer from the path check!
-            self.waiting_for_path_check = False # TODO ISSUE!!!!!!!! den her bliver sat med det samme! aka path_check bliver restat til none og dronen mister derfor sin højde i set_correct_operating_altitude()
-            # we will now set the correct operating altitude in the next loop (if needed)
-            return
-
-
-
 
 
 
