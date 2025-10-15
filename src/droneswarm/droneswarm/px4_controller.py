@@ -296,6 +296,7 @@ class PX4_Controller(Node):
         # If we receive more responses than our estimated_neighbor_count, we adjust our estimated_neighbor_count accordingly (up to max_neighbor_count)
         # If our estimated_neighbor_count is less than max_neighbor_count, we add an extra wait time after receiving all responses, to allow for drones that might come online again to be included.
 
+    # will set self.path_clear (to something other than None) when it completes (also, self.at_path_conflict_alt will be set to signal if we need to increase altitude or not)
     def check_all_current_paths(self):
         self.path_clear = None # reset flag
         self.path_clear_response_count = 0 # reset counter. (counter to keep track of how many drones we have checked the path with)
@@ -343,8 +344,10 @@ class PX4_Controller(Node):
                 self.path_clear = False
                 # If the other drone is at an increased altitude to avoid a path conflict, we assume it is avoiding us, so we dont need to increase our altitude:
                 if(response_at_path_conflict_alt == False):
+                    #self.get_logger().info(f"SUSHI 1")
                     self.at_path_conflict_alt = True 
                 else:
+                    #self.get_logger().info(f"SUSHI 2")
                     self.at_path_conflict_alt = False 
                 self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is not clear
             else:
@@ -358,6 +361,7 @@ class PX4_Controller(Node):
                         self.check_paths_extra_timer = self.create_timer(CHECK_ALL_CURRENT_PATHS_EXTRA_TIME, self.check_all_current_paths_extra_time)
                     else :
                         self.path_clear = True # path is clear if we have checked with all other drones and found no conflicts
+                        #self.get_logger().info(f"SUSHI 3")
                         self.at_path_conflict_alt = False # reset flag
                         self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is clear
 
@@ -371,6 +375,7 @@ class PX4_Controller(Node):
         self.estimated_neighbor_count -= missing_responses # adjust estimated neighbor count to match reality
 
         self.path_clear = True # after timeout, we assume the path is clear (even though we are not 100% sure) - a drone might have gone offline since last check
+        #self.get_logger().info(f"SUSHI 4")
         self.at_path_conflict_alt = False # reset flag
 
     def check_all_current_paths_extra_time(self):
@@ -380,6 +385,7 @@ class PX4_Controller(Node):
 
         # after the extra time, we assume the path is clear (even though less than max_neighbor_count drones responded)
         self.path_clear = True
+        #self.get_logger().info(f"SUSHI 5")
         self.at_path_conflict_alt = False # reset flag
 
     def check_all_current_paths_server_callback(self, request, response):

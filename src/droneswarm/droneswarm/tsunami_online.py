@@ -77,6 +77,9 @@ def all_cells_visited(self):
     if self.flight_complete:
         return # already completed
 
+
+    # TODO der er ingen path collision chechs mens vi returner hjem...
+
     # Return to home position and land:
     #self.get_logger().info("Returning to home position and landing.")
     # Calculate yaw to target waypoint (if enabled)
@@ -88,7 +91,7 @@ def all_cells_visited(self):
     if ENABLE_YAW_TURNING:
         yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target)
 
-    self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad) # go to home position at ground level
+    self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, self.operating_altitude, OPERATING_VELOCITY, yaw_rad) # go to home position at ground level
 
     # Check if we have reached home position:
     dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
@@ -340,14 +343,16 @@ def tsunami_online_loop(self):
     # else:
     #     self.initial_alt_reached = True
 
-    # Make sure we are at the correct operating altitude before continuing (increased if needed to avoid path conflicts)
-    if set_correct_operating_altitude(self):
-        return # wait until we have reached the correct operating altitude
+    #self.get_logger().info(f"WTFF: target {self.lat_target}, {self.lon_target}, altitude {self.operating_altitude}, current pos {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}, current alt {self.vehicle_local_position.z}, path_clear {self.path_clear}, at_path_conflict_alt {self.at_path_conflict_alt}, waiting_for_path_check {self.waiting_for_path_check}")
 
     # Check if all cells have been visited
     if len(self.visited_cells) >= self.bf_traversal_size:
         all_cells_visited(self)
         return
+
+    # Make sure we are at the correct operating altitude before continuing (increased if needed to avoid path conflicts)
+    if set_correct_operating_altitude(self):
+        return # wait until we have reached the correct operating altitude
 
     # Check if we have reached the target cell - if so, update to next target cell
     dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target) # in meters
@@ -358,8 +363,6 @@ def tsunami_online_loop(self):
         # We have a new waypoint target - therefore, trigger a new path check:
         self.trigger_path_check = True 
 
-
-# TODO HUSK AT SLET UBRUGTE VARIABLER (e.g. self.waiting_for_path_check) OG TILFØJ self.path_check_running
 
     if ENABLE_PATH_CONFLICT_CHECK:
 
@@ -372,7 +375,7 @@ def tsunami_online_loop(self):
             if self.path_clear == None:
                 return # wait for the path check to complete
             # we now got an answer from the path check!
-            self.waiting_for_path_check = False # hvorfor skal vi bruge det her flag? når vi bare kan tjekke path_clear?
+            self.waiting_for_path_check = False 
                 
 
     # Calculate yaw to target waypoint (if enabled)
