@@ -26,7 +26,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'our_offboard_control = droneswarm.our_offboard_control:main',
+            'our_offboard_control = droneswarm.offboard_control_example:main',
             'px4_controller = droneswarm.px4_controller:main',
         ],
     },
