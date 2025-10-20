@@ -42,7 +42,7 @@ class OffboardControl(Node):
             VehicleStatus, self.ns + '/fmu/out/vehicle_status_v1', self.vehicle_status_callback, qos_profile)
 
         # Create a timer to publish control commands
-        self.timer = self.create_timer(CONTROL_LOOP_DT, self.controll_loop_callback)
+        self.timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
 
         # Initialize variables
         self.one_sec_loop_count = int(1.0 / CONTROL_LOOP_DT)
@@ -127,7 +127,7 @@ class OffboardControl(Node):
         self.vehicle_command_publisher.publish(msg)
 
 
-    def controll_loop_callback(self) -> None:
+    def control_loop_callback(self) -> None:
 
         self.publish_offboard_control_heartbeat_signal()
 
