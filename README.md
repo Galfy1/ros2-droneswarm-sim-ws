@@ -45,6 +45,10 @@ If you need a Python package that is NOT part of rosdep
 - (see https://docs.ros.org/en/humble/How-To-Guides/Using-Python-Packages.html for lists of available Python packages in rosdep):
 - add it to requirements.txt
 
+For a list of general ROS2 packages, see:
+- [ROS Index](https://index.ros.org/?search_packages=true)
+- (you can also depend on these in the package.xml file)
+
 # About Time
 ## About WSL Clock Skew
 ### PROBLEM
