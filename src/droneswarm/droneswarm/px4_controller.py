@@ -116,7 +116,7 @@ class PX4_Controller(Node):
         self.sync_visited_cells_service = self.create_service(SyncVisitedCells, self.ns_drone + '/sync_visited_cells', self.sync_visited_cells_server_callback)
         self.check_all_current_paths_service = self.create_service(CheckAllCurrentPaths, self.ns_drone + '/check_current_path', self.check_all_current_paths_server_callback)
 
-        # Create clients
+        # Create service clients
         # (for each service, we need a client for each drone)
 
         self.sync_visited_cells_clients = [] 
