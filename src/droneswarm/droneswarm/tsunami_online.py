@@ -21,6 +21,8 @@ import math
 # ADJUSTABLE PARAMETERS
 
 PATH_PLANNING_METHOD = 'BFT'  # Options: "BFT","centroid", "hybrid"
+ALLOW_DIAGONAL_PATH_PLANNING = False  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
+
 OPERATING_ALTITUDE = -25.0  # meters (remeber, NED coordinates: down is positive)
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ALTITUDE_TOLERENCE = 0.5  # meters, how close we need to be to the operating altitude to consider it "reached"
@@ -30,7 +32,7 @@ ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), 
 # SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
 ENABLE_PATH_CONFLICT_CHECK = True  # if True, the drone will check if its path conflicts with other drones and adjust altitude if needed
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
-ALLOW_DIAGONAL_PATH_PLANNING = False  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
+
 ALTITUDE_INCREASE_ON_PATH_CONFLICT = 5.0 # meters, how much to increase altitude if a path conflict is detected with another drone
 
 
