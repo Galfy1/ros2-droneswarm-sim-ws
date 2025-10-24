@@ -147,7 +147,7 @@ class PX4_Controller(Node):
         
 
         # Read traversal order and home position from file (created in offline phase)
-        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'bf_traversal.pkl')
+        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'offline_phase_data.pkl')
         with open(pkl_path, 'rb') as fp:
             data_loaded = pickle.load(fp) 
         # for item in os.listdir(dir_path):
@@ -156,6 +156,8 @@ class PX4_Controller(Node):
         self.home_gps_from_offline = data_loaded['home_gps']
         self.bf_traversal_cells = data_loaded['bf_traversal_cells']
         self.bf_traversal_gps = data_loaded['bf_traversal_gps']
+        self.fly_nofly_grid = data_loaded['fly_nofly_grid']
+        self.centroid = data_loaded['centroid'] # centroid of the Polygon area 
         self.bf_traversal_size = len(self.bf_traversal_gps)
         self.visited_cells = set() # Set to keep track of which cells have been visited (dont use "{}" because that creates an empty dict, not a set)
         

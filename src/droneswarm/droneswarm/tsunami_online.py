@@ -17,7 +17,10 @@ import math
 
 # TODO vi skal have lavet det der spline halløj
 
+
 # ADJUSTABLE PARAMETERS
+
+PATH_PLANNING_METHOD = 'BFT'  # Options: "BFT","centroid", "hybrid"
 OPERATING_ALTITUDE = -25.0  # meters (remeber, NED coordinates: down is positive)
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ALTITUDE_TOLERENCE = 0.5  # meters, how close we need to be to the operating altitude to consider it "reached"
