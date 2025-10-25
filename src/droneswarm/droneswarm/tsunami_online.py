@@ -230,7 +230,7 @@ def tsunami_does_paths_cross(path1_from, path1_to, path2_from, path2_to):
 # current_cell: (x,y) tuple
 # visited_cells: set of (x,y) tuples
 # allow_diagonal: bool, if True, diagonal neighbors are considered neighbors
-def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=False):
+def find_next_cell_bft(bft_cells, current_cell, visited_cells, allow_diagonal=False):
 
     # Find current location in bft_cells
     if current_cell not in bft_cells:
@@ -263,11 +263,111 @@ def find_next_cell(bft_cells, current_cell, visited_cells, allow_diagonal=False)
     return closest_cell
 
 
+# Function to check if a cell
+# is be visited or not
+def _is_cell_valid(grid, vis, x, y):
+  
+    # If cell lies out of bounds
+    if (x < 0 or y < 0 or x >= grid.shape[1] or y >= grid.shape[0]):
+        return False
+
+    # If cell is already visited
+    if (vis[y][x]):
+        return False
+    
+    # If cell is not traversable (i.e. "no fly zone")
+    if (grid[y][x] == 0):
+        return False
+
+    # Otherwise
+    return True
+
+def _find_closest_cell(grid, current_cell, visited_cells): # TODO BFT INPLIMENTERINGE KAN NOK OGSÅ BARE BRUGE DEN HER?
+    min_dist = float("inf")
+    closest_cell = None
+    for y in range(grid.shape[0]):
+        for x in range(grid.shape[1]):
+            if(_is_cell_valid(grid, visited_cells, x, y)):
+                dx = abs(x - current_cell[1])
+                dy = abs(y - current_cell[0])
+                dist = math.sqrt(dx**2 + dy**2)  # Euclidean distance
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_cell = (y, x)
+    return closest_cell # closest unvisited cell. returns None if no more valid cells are left
+
+
+def _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, centroid_line_angle: float, 
+                                                 directional: str, allow_diagonal_in_path = True):
+    #neighbor_with_smallest_angle_diff = None  # angle diff compared to centroid line direction
+    x = current_cell[1]
+    y = current_cell[0]
+    result = []
+
+    # TODO LIGE NU ER DET KUN 8 WAY. AKA allow_diagonal_in_path GØR INGENTING... IMPLIMENTER 4 WAY OGSÅ?
+
+    for i in range(8):
+        adjx = x + dRow_8way[i]
+        adjy = y + dCol_8way[i]
+        if (_is_cell_valid(grid, visited_cells, adjx, adjy)):
+            neighbor_cell = (adjy, adjx)
+
+            # Calculate angle from current_cell to neighbor_cell
+            angle_to_neighbor = math.atan2(neighbor_cell[0] - current_cell[0], neighbor_cell[1] - current_cell[1])  # angle in radians
+
+            # Calculate angle difference to centroid line angle
+            
+            angle_diff_rad = abs(angle_to_neighbor - centroid_line_angle)    # raw difference, but could be anywhere from 0 to 2π.
+            angle_diff_rad = min(angle_diff_rad, 2*math.pi - angle_diff_rad) # ensure in [0, pi]. This step ensures we are measuring the shorter way around the circle (e.g. 350° → 10°).
+            if directional == "bidirectional":
+                angle_diff_rad = min(angle_diff_rad, math.pi - angle_diff_rad)   # ensure in [0, pi/2]. Folds any obtuse angle (>90°) back into an acute one, giving [0, pi/2].
+
+            #print(f"Neighbor {i}, angle diff to centroid: {angle_diff_rad}")
+
+            result.append((neighbor_cell, angle_diff_rad))
+
+    return result  # list of (neighbor_cell, angle_diff_rad)
+
+    #         # Check if this neighbor has the smallest angle difference so far
+    #         if (neighbor_with_smallest_angle_diff is None) or (angle_diff_rad < neighbor_with_smallest_angle_diff[1]):
+    #             neighbor_with_smallest_angle_diff = (neighbor_cell, angle_diff_rad)
+
+    # return neighbor_with_smallest_angle_diff  # (neighbor_cell, angle_diff_rad) or None if no valid neighbor found
+
+
+# "Unidirectional" angle difference (0 to pi). "Bidirectional" would be (0 to pi/2). 
+# "Bidirectional" does not seem to work very well for the "pure centroid" method (constantly shifting direction)
+def find_next_cell_centroid(grid, current_cell, visited_cells, centroid_line_angle: float, 
+                             directional = "unidirectional", allow_diagonal_in_path = True):
+
+    centroid_angle_diff_of_neighbors = _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, centroid_line_angle, directional, allow_diagonal_in_path)
+
+    if centroid_angle_diff_of_neighbors: # if list is not empty
+        # Find the neighbor with the smallest angle difference
+        # centroid_angle_diff_of_neighbors is a list of (neighbor_cell, angle_diff_rad)
+        neighbor_with_smallest_angle_diff = min(centroid_angle_diff_of_neighbors, key=lambda x: x[1])
+        return neighbor_with_smallest_angle_diff[0] 
+    else:
+        # No unvisited neighbor is found. Find the closest unvisited cell
+        #print("No unvisited neighbor found. Finding closest unvisited cell...")
+        return _find_closest_cell(grid, current_cell, visited_cells) # closest unvisited cell. returns None if no more valid cells are left
+
+
+
+
 def update_target_cell(self):
 
+    # TODO ENDNU EN ALTERNATIV STRAT TIL PATH PLANNING. (nem at implimentere), "centroid90" - hvor den i stedet flyver 90 grader til cetrnoid linjen
 
     # Find the next cell in the Breadth First Traversal
-    next_cell = find_next_cell(self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_PATH_PLANNING)
+    if PATH_PLANNING_METHOD == 'BFT':
+        next_cell = find_next_cell_bft(self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_PATH_PLANNING)
+    elif PATH_PLANNING_METHOD == 'centroid':
+        next_cell = find_next_cell_centroid(self.fly_nofly_grid, self.current_target_cell, self.visited_cells,
+                                            self.centroid_line_angle, allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING)
+    elif PATH_PLANNING_METHOD == 'hybrid':
+        # TODO
+        pass
     if next_cell is not None:
         # New target cell found!
         self.current_target_cell = next_cell
@@ -275,7 +375,7 @@ def update_target_cell(self):
         # Mark the next cell as "visited" (both locally and broadcast to other drones) - this is to "reserve" the cell for this drone
         self.visited_cells.add(next_cell)
         self.broadcast_visited_cell(next_cell) 
-        self.flight_path_log.append((float(self.lat_target), float(self.lon_target))) # log the flight path
+        self.flight_path_log.append((float(self.lat_target), float(self.lon_target))) # log the flight path for later plotting
     else:
         self.get_logger().info("No valid next cell found.")
         # this means all cells have been visited
@@ -285,11 +385,13 @@ def update_target_cell(self):
 def cell_to_gps(self, cell):
     
     # Find index of cell in bf
-    cell_index = self.bf_traversal_cells.index(cell) # this should only result in one index, since each cell is unique in the traversal order
+    #cell_index = self.bf_traversal_cells.index(cell) # this should only result in one index, since each cell is unique in the traversal order
+    cell_index = self.fly_nofly_grid.index(cell)
 
     # Convert cell to GPS coordinates
-    gps_coords = self.bf_traversal_gps[cell_index]
-    return gps_coords
+    #gps_coord = self.bf_traversal_gps[cell_index]
+    gps_coord = self.fly_nofly_grid_gps[cell_index]
+    return gps_coord
 
 
 # Will move drone to target waypoint, while taking into acount path conflicts with other drones. It
