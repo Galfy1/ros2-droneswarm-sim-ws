@@ -45,6 +45,13 @@ ALTITUDE_INCREASE_ON_PATH_CONFLICT = 5.0 # meters, how much to increase altitude
 # TODO vi kan bruge Qgroundcontrol pathen den tegner, til at se hvor dronen rent faktisk flyver hen
 
 
+# Direction vectors
+dRow_4way = [ -1, 0, 1, 0]
+dCol_4way = [ 0, 1, 0, -1]
+
+dRow_8way = [ -1, -1, 0, 1, 1, 1, 0, -1]
+dCol_8way = [ 0, 1, 1, 1, 0, -1, -1, -1]
+
 def great_circle_bearing(lat1, lon1, lat2, lon2):
     # (see https://www.movable-type.co.uk/scripts/latlong.html) ("Bearing" is the angle in Lat/Lon language)
     d_lon = lon2 - lon1
