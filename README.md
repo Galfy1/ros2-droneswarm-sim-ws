@@ -2,18 +2,22 @@ THIS CODE IS NOT COMPLETE
 
 # ros2-droneswarm-sim-ws
 ROS2 workspace made for a drone swarm simulation using PX4/ROS2 Multi-Vehicle Simulation in Gazebo.  
-For more info, see: https://docs.px4.io/main/en/ros2/user_guide.html#installation-setup.
-  
-To run the simulation, you also need QGC:
-- https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html.  
-
 
 # Get Started
 1. Clone repo:
     - `git clone --recursive {this repo}`
     - `cd ros2-droneswarm-sim-ws`
+1. Install PX4, ROS2 and setup Micro XRCE-DDS Agent:
+    - Go to: https://docs.px4.io/main/en/ros2/user_guide#installation-setup and complete the following sections:
+      - **"Install PX4"**
+      - **"Install ROS 2"**
+      - "**Setup Micro XRCE-DDS Agent & Client"**
+        - (here, you only need step 1 and 2!)
+1. Install QCC (required for simulation):
+    -  https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html 
 1. Install dependencies (stand in /ros2-droneswarm-sim-ws):
     - `sudo apt update`
+    - `sudo rosdep init`
     - `rosdep update`
     - `source /opt/ros/humble/setup.bash`
     - `rosdep install -i --from-path src --rosdistro humble -y`
@@ -24,8 +28,6 @@ To run the simulation, you also need QGC:
     - `source /opt/ros/humble/setup.bash` 
     - `colcon build`
   
-NOTE: If rosdep... outputs an error, you might need to call "sudo rosdep init" and try again
-
 # How to Run / Launch
 1. Open a new terminal (never run/launch in the same terminal you build the workspace)
 1. Source overlay:
