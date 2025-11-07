@@ -17,6 +17,7 @@ To run the simulation, you also need QGC:
     - `rosdep update`
     - `source /opt/ros/humble/setup.bash`
     - `rosdep install -i --from-path src --rosdistro humble -y`
+    - `sudo apt install python3-pip`
     - `python3 -m pip install -r requirements.txt`
     - `sudo apt install ros-humble-ros-gzharmonic`
 1. Build ROS2 workspace (stand in /ros2-droneswarm-sim-ws):
