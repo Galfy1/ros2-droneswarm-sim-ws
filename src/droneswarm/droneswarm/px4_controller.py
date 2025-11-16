@@ -155,12 +155,12 @@ class PX4_Controller(Node):
         self.home_cell_from_offline = data_loaded['home_cell']
         self.home_gps_from_offline = data_loaded['home_gps']
         self.bf_traversal_cells = data_loaded['bf_traversal_cells']
-        self.bf_traversal_gps = data_loaded['bf_traversal_gps']
+        #self.bf_traversal_gps = data_loaded['bf_traversal_gps']
         self.fly_nofly_grid = data_loaded['fly_nofly_grid']
         self.fly_nofly_grid_gps = data_loaded['fly_nofly_grid_gps'] # used to translate grid cells to cps coords
         #self.centroid = data_loaded['centroid'] # centroid of the Polygon area 
         self.centroid_line_angle = data_loaded['centroid_line_angle'] # angle of the line from home to centroid (radians)
-        self.bf_traversal_size = len(self.bf_traversal_gps)
+        self.bf_traversal_size = len(self.bf_traversal_cells)
         self.visited_cells = set() # Set to keep track of which cells have been visited (dont use "{}" because that creates an empty dict, not a set)
         
         # Initialize  variables

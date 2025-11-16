@@ -267,13 +267,15 @@ def update_target_cell(self):
 
 def cell_to_gps(self, cell):
     
-    # Find index of cell in bf
-    #cell_index = self.bf_traversal_cells.index(cell) # this should only result in one index, since each cell is unique in the traversal order
-    cell_index = self.fly_nofly_grid.index(cell)
+    # # Find index of cell in bf
+    # #cell_index = self.bf_traversal_cells.index(cell) # this should only result in one index, since each cell is unique in the traversal order
+    # cell_index = self.fly_nofly_grid.index(cell)
 
-    # Convert cell to GPS coordinates
-    #gps_coord = self.bf_traversal_gps[cell_index]
-    gps_coord = self.fly_nofly_grid_gps[cell_index]
+    # # Convert cell to GPS coordinates
+    # #gps_coord = self.bf_traversal_gps[cell_index]
+    # gps_coord = self.fly_nofly_grid_gps[cell_index]
+
+    gps_coord = self.fly_nofly_grid_gps[cell[0]][cell[1]]
     return gps_coord
 
 
