@@ -1,7 +1,8 @@
-from haversine import haversine, Unit
+#from haversine import haversine, Unit
 import numpy as np
 import math
 from .tsunami_find_next_cell import find_next_cell_bft, find_next_cell_centroid, find_next_cell_hybrid
+from .great_circle_tools import great_circle_distance, great_circle_bearing
 
 # See the following for helpfull lat/lon/bearing calculations:
 #    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
@@ -46,21 +47,13 @@ ALTITUDE_INCREASE_ON_PATH_CONFLICT = 5.0 # meters, how much to increase altitude
 
 
 
-def great_circle_bearing(lat1, lon1, lat2, lon2):
-    # (see https://www.movable-type.co.uk/scripts/latlong.html) ("Bearing" is the angle in Lat/Lon language)
-    d_lon = lon2 - lon1
-    term_1 = np.sin(d_lon) * np.cos(lat2)
-    term_2 = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon)
-    return np.arctan2(term_1, term_2)
 
-def great_circle_distance(lat1, lon1, lat2, lon2):
-    return haversine((lat1, lon1), (lat2, lon2), unit=Unit.METERS) # haversine is also called "Great-circle Distance Formula"
 
 
 
 
 def tsunami_online_init(self):
-    self.initial_alt_reached = False
+    #self.initial_alt_reached = False
     self.current_target_cell = self.home_cell_from_offline # initialize to home cell
     self.lat_target, self.lon_target = cell_to_gps(self, self.current_target_cell) # get initial target gps coordinates
     self.flight_path_log = [(float(self.lat_target), float(self.lon_target))]  # list to log the flight path (lat, lon) tuples - for analysis later
@@ -90,6 +83,7 @@ def all_cells_visited(self):
     #self.get_logger().info("Returning to home position and landing.")
     # Calculate yaw to target waypoint (if enabled)
 
+    # TODO hvorfor gør jeg det her: ?? hvis jeg aligvel bare bruger home pos direkte nedenunder??
     self.lat_target = self.home_pos.lat 
     self.lon_target = self.home_pos.lon
 
@@ -109,7 +103,7 @@ def all_cells_visited(self):
             return
 
         self.get_logger().info("Reached home position, landing now.")
-        self.land() # TODO den lander altså ret skævt... har sat den til 2sec til stablizie... så test lige det
+        self.land() 
         self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
         self.flight_complete = True 
 
@@ -353,7 +347,7 @@ def tsunami_online_loop(self):
     #self.get_logger().info(f"WTFF: target {self.lat_target}, {self.lon_target}, altitude {self.operating_altitude}, current pos {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}, current alt {self.vehicle_local_position.z}, path_clear {self.path_clear}, at_path_conflict_alt {self.at_path_conflict_alt}, waiting_for_path_check {self.waiting_for_path_check}")
 
     # Check if all cells have been visited
-    if len(self.visited_cells) >= self.bf_traversal_size:
+    if len(self.visited_cells) >= self.path_size:
         all_cells_visited(self)
         return
 
