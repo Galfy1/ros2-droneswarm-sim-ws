@@ -2,11 +2,11 @@ import numpy as np
 import math
 
 # Direction vectors
-dRow_4way = [ -1, 0, 1, 0]
-dCol_4way = [ 0, 1, 0, -1]
+dx_4way = [ -1, 0, 1, 0]
+dy_4way = [ 0, 1, 0, -1]
 
-dRow_8way = [ -1, -1, 0, 1, 1, 1, 0, -1]
-dCol_8way = [ 0, 1, 1, 1, 0, -1, -1, -1]
+dx_8way = [ -1, -1, 0, 1, 1, 1, 0, -1]
+dy_8way = [ 0, 1, 1, 1, 0, -1, -1, -1]
 
 # Find the next cell in the Breadth First Traversal
 # bft_cells: list of (x,y) tuples
@@ -55,7 +55,9 @@ def _is_cell_valid(grid, vis, x, y):
         return False
 
     # If cell is already visited
-    if (vis[y][x]):
+    # if (vis[y][x]):
+    #     return False
+    if ( (y, x) in vis ): # vis is a set of (y,x) tuples
         return False
     
     # If cell is not traversable (i.e. "no fly zone")
@@ -88,6 +90,9 @@ def _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, ce
     x = current_cell[1]
     y = current_cell[0]
     result = []
+
+    if allow_diagonal_in_path == False: # TODO 
+        self.get_logger().warning("allow_diagonal_in_path = False is not implemented for centroid path planning. Using 8-way connectivity regardless.")
 
     # TODO LIGE NU ER DET KUN 8 WAY. AKA allow_diagonal_in_path GØR INGENTING... IMPLIMENTER 4 WAY OGSÅ?
     # MÅSKE LAV EN WARNING MED AT DET IKKE GIVER SUPER MEGET MENEING MED allow_diagonal_in_path = false for centroid stuff?
@@ -130,6 +135,46 @@ def find_next_cell_centroid(grid, current_cell, visited_cells, centroid_line_ang
         neighbor_with_smallest_angle_diff = min(centroid_angle_diff_of_neighbors, key=lambda x: x[1])
         #print(f"Next cell chosen with angle diff: {neighbor_with_smallest_angle_diff[1]}")
         return neighbor_with_smallest_angle_diff[0] 
+    else:
+        # No unvisited neighbor is found. Find the closest unvisited cell
+        #print("No unvisited neighbor found. Finding closest unvisited cell...")
+        return _find_closest_cell(grid, current_cell, visited_cells) # closest unvisited cell. returns None if no more valid cells are left
+
+
+
+# "Unidirectional" angle difference (0 to pi). "Bidirectional" would be (0 to pi/2). 
+#  For this hybrid approach, we want "Bidirectional" (the issues of bidirectional is what we are trying to fix by taking into account current direction as well)
+def find_next_cell_hybrid(grid, current_cell, visited_cells, centroid_line_angle: float, current_direction_angle: float, 
+                           weight_centroid, directional = "bidirectional", allow_diagonal_in_path = True, angle_offset_rad = 0):
+
+    centroid_angle_diff_of_neighbors = _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, centroid_line_angle+angle_offset_rad, directional, allow_diagonal_in_path)
+
+    if centroid_angle_diff_of_neighbors: # if list is not empty
+
+        # Find the neighbor with the smallest weighted angle difference
+        # centroid_angle_diff_of_neighbors is a list of (neighbor_cell, angle_diff_rad)
+        min_weighted_angle_diff = float("inf")
+        best_neighbor = None
+
+        # (here, angles are in radians)
+        for neighbor_cell, angle_diff_to_centroid in centroid_angle_diff_of_neighbors:
+            # Calculate angle from current_cell to neighbor_cell
+            angle_to_neighbor = math.atan2(neighbor_cell[0] - current_cell[0], neighbor_cell[1] - current_cell[1])  # angle in radians
+
+            # Calculate angle difference to current direction (we always want this to be unidirectional, i.e. [0, pi]. cus we want to penalize sharp turns)
+            angle_diff_to_current_dir = abs(angle_to_neighbor - current_direction_angle)
+            angle_diff_to_current_dir = min(angle_diff_to_current_dir, 2*math.pi - angle_diff_to_current_dir) # ensure in [0, pi]
+        
+            # Calculate weighted angle difference
+            weighted_angle_diff = (weight_centroid * angle_diff_to_centroid) + ((1 - weight_centroid) * angle_diff_to_current_dir)
+
+            if weighted_angle_diff < min_weighted_angle_diff:
+                min_weighted_angle_diff = weighted_angle_diff
+                best_neighbor = neighbor_cell
+
+        return best_neighbor
+
+
     else:
         # No unvisited neighbor is found. Find the closest unvisited cell
         #print("No unvisited neighbor found. Finding closest unvisited cell...")

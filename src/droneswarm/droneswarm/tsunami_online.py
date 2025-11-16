@@ -1,7 +1,7 @@
 from haversine import haversine, Unit
 import numpy as np
 import math
-from .tsunami_find_next_cell import find_next_cell_bft, find_next_cell_centroid
+from .tsunami_find_next_cell import find_next_cell_bft, find_next_cell_centroid, find_next_cell_hybrid
 
 # See the following for helpfull lat/lon/bearing calculations:
 #    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
@@ -21,8 +21,9 @@ from .tsunami_find_next_cell import find_next_cell_bft, find_next_cell_centroid
 
 # ADJUSTABLE PARAMETERS
 
-PATH_PLANNING_METHOD = 'BFT'  # Options: "BFT", "centroid", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
+PATH_PLANNING_METHOD = 'centroid'  # Options: "BFT", "centroid", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
 ALLOW_DIAGONAL_PATH_PLANNING = False  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
+HYBRID_CENTROID_WEIGHT = 0.6  # only used if PATH_PLANNING_METHOD is hybrid - weight for centroid direction in hybrid path planning (0.0 = only current direction, 1.0 = only centroid direction)
 
 OPERATING_ALTITUDE = -25.0  # meters (remeber, NED coordinates: down is positive)
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
@@ -68,6 +69,9 @@ def tsunami_online_init(self):
     self.waiting_for_path_check = False 
     self.land_stabelize_counter = 0
     self.operating_altitude = OPERATING_ALTITUDE # current operating altitude (can be increased to avoid path conflicts)
+
+    # For "hybrid" method, we also need the current direction angle
+    self.current_direction_angle = 0.0  # initial direction angle (radians). Could be set to any value, as it will be updated after the first move.
 
     self.get_logger().info("Tsunami online initialized")
 
@@ -248,9 +252,23 @@ def update_target_cell(self):
     elif PATH_PLANNING_METHOD == 'centroid180':
         next_cell = find_next_cell_centroid(self.fly_nofly_grid, self.current_target_cell, self.visited_cells,
                                             self.centroid_line_angle, allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING, angle_offset_rad=math.pi)
-    elif PATH_PLANNING_METHOD == 'hybrid':
-        # TODO
-        pass
+    elif PATH_PLANNING_METHOD == 'centroid_hybrid':
+        current_cell = self.current_target_cell
+        next_cell = find_next_cell_hybrid(self.fly_nofly_grid, self.current_target_cell, self.visited_cells,
+                                         self.centroid_line_angle, self.current_direction_angle,
+                                         weight_centroid=HYBRID_CENTROID_WEIGHT,
+                                         allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING)
+        # Update current direction angle
+        self.current_direction_angle = math.atan2(next_cell[0] - current_cell[0], next_cell[1] - current_cell[1]) 
+    elif PATH_PLANNING_METHOD == 'centroid90_hybrid':
+        current_cell = self.current_target_cell
+        next_cell = find_next_cell_hybrid(self.fly_nofly_grid, self.current_target_cell, self.visited_cells,
+                                         self.centroid_line_angle, self.current_direction_angle,
+                                         weight_centroid=HYBRID_CENTROID_WEIGHT,
+                                         allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING, angle_offset_rad=math.pi/2)
+        # Update current direction angle
+        self.current_direction_angle = math.atan2(next_cell[0] - current_cell[0], next_cell[1] - current_cell[1])                
+
     if next_cell is not None:
         # New target cell found!
         self.current_target_cell = next_cell
