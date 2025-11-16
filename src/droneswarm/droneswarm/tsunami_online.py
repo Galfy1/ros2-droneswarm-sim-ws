@@ -1,7 +1,7 @@
 from haversine import haversine, Unit
 import numpy as np
 import math
-from .find_next_cell import find_next_cell_bft, find_next_cell_centroid
+from .tsunami_find_next_cell import find_next_cell_bft, find_next_cell_centroid
 
 # See the following for helpfull lat/lon/bearing calculations:
 #    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
