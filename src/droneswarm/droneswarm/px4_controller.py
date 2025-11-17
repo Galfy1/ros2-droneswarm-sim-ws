@@ -532,7 +532,8 @@ class PX4_Controller(Node):
         if self.offboard_startup_counter == wait_loops:
             self.engage_offboard_mode()
             self.arm()
-            self.sync_visited_cells() # Sync visited cells with all other drones
+            if self.path_planning_method == 'tsunami':
+                self.sync_visited_cells() # Sync visited cells with all other drones
             self.offboard_startup_counter = 9999  # Prevent re-entering this if statement
         if self.offboard_startup_counter < wait_loops:
             self.offboard_startup_counter += 1

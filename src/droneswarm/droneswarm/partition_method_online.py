@@ -2,11 +2,13 @@ import numpy as np
 import math
 from .great_circle_tools import great_circle_distance, great_circle_bearing
 
+
 OPERATING_ALTITUDE = -25.0  # meters (remeber, NED coordinates: down is positive)
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ALTITUDE_TOLERENCE = 0.5  # meters, how close we need to be to the operating altitude to consider it "reached"
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
 
+WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
 
 
 def partition_method_online_init(self):
@@ -18,7 +20,8 @@ def partition_method_online_init(self):
     self.land_stabelize_counter = 0
     self.cell_progress_index = 0  # index to track progress through the path cells
 
-
+def cell_to_gps(self, cell):
+    return self.fly_nofly_grid_gps[cell[0]][cell[1]]
 
 def all_cells_visited(self):
     #self.get_logger().info("Completed all cells.")
@@ -80,7 +83,7 @@ def update_target_cell(self):
 
     self.current_target_cell = next_cell
     self.lat_target, self.lon_target = cell_to_gps(self, next_cell)
-    self.visitied_cells.append(next_cell)
+    self.visited_cells.add(next_cell)
     self.flight_path_log.append((float(self.lat_target), float(self.lon_target)))
 
     self.cell_progress_index += 1
