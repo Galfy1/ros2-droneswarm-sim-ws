@@ -117,3 +117,8 @@ To fix this, delete your PX4-Autopilot folder and reinstall it according to the 
       ! autovideosink
       ```
 
+# Miscellaneous Notes
+If you keep seeing this warning: `WARN  [commander] Arming denied: Resolve system health failures first` try to delete the PX4-Autopilot folder and redo the Install PX4 step.
+
+
+
