@@ -15,7 +15,8 @@ def generate_launch_description():
     # Declare the namespace argument (it can be provided when launching)
     namespace = LaunchConfiguration('namespace')
 
-    MAX_DRONE_COUNT = 3  # REMEMBER TO CHANGE THIS IF YOU ADD MORE DRONES
+    MAX_DRONE_COUNT = 3  # REMEMBER TO CHANGE THIS IF YOU ADD MORE DRONES.
+                         # IMPORTANT: THIS NUMBER MUST MATCH THE UAV COUNT USED IN THE OFFLINE PARTITIONING SCRIPT.
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -32,7 +33,7 @@ def generate_launch_description():
                 {'instance_id': 1}, # start from 1! not 0!
                 {'start_flight_delay_s': 0}, # delay before starting the flight (seconds)
                 {'max_drone_count': MAX_DRONE_COUNT},
-                {'path_planning_method': 'tsunami'},
+                {'path_planning_method': 'partition_method'},
                 {'use_sim_time': True}
             ]
         ),
@@ -45,7 +46,7 @@ def generate_launch_description():
                 {'instance_id': 2},
                 {'start_flight_delay_s': 5},
                 {'max_drone_count': MAX_DRONE_COUNT},
-                {'path_planning_method': 'tsunami'},
+                {'path_planning_method': 'partition_method'},
                 {'use_sim_time': True}
             ]
         ),
@@ -58,7 +59,7 @@ def generate_launch_description():
                 {'instance_id': 3}, 
                 {'start_flight_delay_s': 10},
                 {'max_drone_count': MAX_DRONE_COUNT},
-                {'path_planning_method': 'tsunami'},
+                {'path_planning_method': 'partition_method'},
                 {'use_sim_time': True}
             ]
         )

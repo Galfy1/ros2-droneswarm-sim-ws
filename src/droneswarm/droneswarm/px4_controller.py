@@ -12,6 +12,7 @@ from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop, tsunami_does_paths_cross
 from our_custom_interfaces.srv import SyncVisitedCells, CheckAllCurrentPaths # custom ROS2 interfaces
 from our_custom_interfaces.msg import Cell, Path # custom ROS2 interfaces
+from .partition_method_online import partition_method_online_init, partition_method_online_loop
 
 # TODO behold de relevant nedersteående links
 # see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
@@ -37,6 +38,9 @@ package_name = 'droneswarm'
 
 CONTROL_LOOP_DT = 0.05  # seconds
 HOME_POS_TOLERANCE = 1e-4  # degrees # TODO ADJUST
+
+
+# SETTINGS SPECIFIC FOR TSUNAMI INTRA-DRONE COMMUNICATION:
 CHECK_ALL_CURRENT_PATHS_TIMEOUT = 2.0 # seconds # TODO ADJUST
                                         # TODO, vi kan init med max antal drones. hvis den får responses for det antal, så er den færdig.
                                                 # hvis en eller flere droner ikke svarer, så er det timeouten der bestemmer hvornår den er færdig
@@ -61,10 +65,12 @@ class PX4_Controller(Node):
         self.declare_parameter('instance_id', 1) # start ID's from 1 (not 0!) 
         self.declare_parameter('max_drone_count', 1) # its asumed that the instance_id is in the range [1, max_drone_count]
         self.declare_parameter('start_flight_delay_s', 0) # delay before starting the flight (seconds)
+        self.declare_parameter('path_planning_method', 'tsunami') # 'tsunami' or 'partition_method'
 
         self.instance_id = self.get_parameter('instance_id').get_parameter_value().integer_value
         self.max_drone_count = self.get_parameter('max_drone_count').get_parameter_value().integer_value
         self.start_flight_delay_s = self.get_parameter('start_flight_delay_s').get_parameter_value().integer_value
+        self.path_planning_method = self.get_parameter('path_planning_method').get_parameter_value().string_value
 
         # Namespaces
         self.ns_px4 = "/px4_" + str(self.instance_id) # Namespace for multiple vehicle instances. 
@@ -104,65 +110,95 @@ class PX4_Controller(Node):
             # NOTE: /px4_1/fmu/out/vehicle_gps_position also exist. for more info: https://docs.px4.io/main/en/msg_docs/ 
 
 
-        ############ COMMUNICATION STUFF ############
+        ############ TSUNAMI COMMUNICATION STUFF ############
 
-        # Create publishers
-        self.visited_cell_publisher = self.create_publisher(
-            Cell, '/announce_visited_cell', qos_profile) # global topic, all drones publish and subscribe to the same topic (i.e. no individual drone namespace)
+        if self.path_planning_method == 'tsunami':
 
-        # Create subscribers
-        self.visited_cell_subscriber = self.create_subscription(
-            Cell, '/announce_visited_cell', self.visited_cell_callback, qos_profile)
+            # Create publishers
+            self.visited_cell_publisher = self.create_publisher(
+                Cell, '/announce_visited_cell', qos_profile) # global topic, all drones publish and subscribe to the same topic (i.e. no individual drone namespace)
 
-        # Create services
-        self.sync_visited_cells_service = self.create_service(SyncVisitedCells, self.ns_drone + '/sync_visited_cells', self.sync_visited_cells_server_callback)
-        self.check_all_current_paths_service = self.create_service(CheckAllCurrentPaths, self.ns_drone + '/check_current_path', self.check_all_current_paths_server_callback)
+            # Create subscribers
+            self.visited_cell_subscriber = self.create_subscription(
+                Cell, '/announce_visited_cell', self.visited_cell_callback, qos_profile)
 
-        # Create service clients
-        # (for each service, we need a client for each drone)
+            # Create services
+            self.sync_visited_cells_service = self.create_service(SyncVisitedCells, self.ns_drone + '/sync_visited_cells', self.sync_visited_cells_server_callback)
+            self.check_all_current_paths_service = self.create_service(CheckAllCurrentPaths, self.ns_drone + '/check_current_path', self.check_all_current_paths_server_callback)
 
-        self.sync_visited_cells_clients = [] 
-        for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
-            if drone_id == self.instance_id:
-                continue # skip self
-            drone_ns = "drone_" + str(drone_id)
-            self.sync_visited_cells_clients.append(self.create_client(SyncVisitedCells, self.ns_launch +"/"+ drone_ns + '/sync_visited_cells'))
-            while not self.sync_visited_cells_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
-                self.get_logger().info('service not available, waiting again...')
-                
-        self.check_all_current_paths_clients = []
-        for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
-            if drone_id == self.instance_id:
-                continue # skip self
-            drone_ns = "drone_" + str(drone_id)
-            self.check_all_current_paths_clients.append(self.create_client(CheckAllCurrentPaths, self.ns_launch +"/"+ drone_ns + '/check_current_path'))
-            while not self.check_all_current_paths_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
-                self.get_logger().info('service not available, waiting again...')
+            # Create service clients
+            # (for each service, we need a client for each drone)
 
+            self.sync_visited_cells_clients = [] 
+            for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
+                if drone_id == self.instance_id:
+                    continue # skip self
+                drone_ns = "drone_" + str(drone_id)
+                self.sync_visited_cells_clients.append(self.create_client(SyncVisitedCells, self.ns_launch +"/"+ drone_ns + '/sync_visited_cells'))
+                while not self.sync_visited_cells_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
+                    self.get_logger().info('service not available, waiting again...')
+                    
+            self.check_all_current_paths_clients = []
+            for drone_id in range(1, self.max_drone_count + 1): # start from 1 to max_drone_count (inclusive)
+                if drone_id == self.instance_id:
+                    continue # skip self
+                drone_ns = "drone_" + str(drone_id)
+                self.check_all_current_paths_clients.append(self.create_client(CheckAllCurrentPaths, self.ns_launch +"/"+ drone_ns + '/check_current_path'))
+                while not self.check_all_current_paths_clients[-1].wait_for_service(timeout_sec=1.0): # (-1 gets the last added client)
+                    self.get_logger().info('service not available, waiting again...')
 
-        # Initialize  variables for communication
-    
+            # Initialize tsunami specific variables
+            self.path_clear = None # flag to indicate if path is clear (i.e. no other drones are in the way)
+            self.path_clear_response_count = 0 # counter to keep track of how many drones we have checked the path with
+            self.max_neighbor_count = self.max_drone_count - 1 # used for path checking
+            self.estimated_neighbor_count = self.max_neighbor_count # used for path checking
 
+            self.at_path_conflict_alt = False # Flag to indicate if we are at the increased altitude to avoid path conflict.
+                                          # This setup only works if two drones are involved in the path conflict. A solution to handle path conflicts involving an arbitrary number of drones would make the implementation quite a bit more complex.
 
-        ############ COMMUNICATION STUFF END ############ 
+        ############ TSUNAMI COMMUNICATION STUFF END ############ 
          
         
 
-        # Read traversal order and home position from file (created in offline phase)
-        pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'offline_phase_data.pkl')
+        # # Read traversal order and home position from file (created in offline phase)
+        # pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'offline_phase_data.pkl')
+        # with open(pkl_path, 'rb') as fp:
+        #     data_loaded = pickle.load(fp) 
+        # # for item in os.listdir(dir_path):
+        # #     self.get_logger().info(f"Found item in parent dir: {item}")
+        # self.home_cell_from_offline = data_loaded['home_cell']
+        # self.home_gps_from_offline = data_loaded['home_gps']
+        # #self.bf_traversal_gps = data_loaded['bf_traversal_gps']
+        # self.fly_nofly_grid = data_loaded['fly_nofly_grid']
+        # self.fly_nofly_grid_gps = data_loaded['fly_nofly_grid_gps'] # used to translate grid cells to cps coords
+        # #self.centroid = data_loaded['centroid'] # centroid of the Polygon area 
+        # if self.path_planning_method == 'tsunami':
+        #     self.centroid_line_angle = data_loaded['centroid_line_angle'] # angle of the line from home to centroid (radians)
+        #     self.bf_traversal_cells = data_loaded['bf_traversal_cells']
+        # elif self.path_planning_method == 'partition_method':
+        #     pass # TODO 
+
+        if self.path_planning_method == 'tsunami':
+            pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'tsunami_offline_data.pkl')
+        elif self.path_planning_method == 'partition_method':
+            pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'partition_offline_data.pkl')
         with open(pkl_path, 'rb') as fp:
-            data_loaded = pickle.load(fp) 
-        # for item in os.listdir(dir_path):
-        #     self.get_logger().info(f"Found item in parent dir: {item}")
+            data_loaded = pickle.load(fp)
+
         self.home_cell_from_offline = data_loaded['home_cell']
         self.home_gps_from_offline = data_loaded['home_gps']
-        self.bf_traversal_cells = data_loaded['bf_traversal_cells']
-        #self.bf_traversal_gps = data_loaded['bf_traversal_gps']
         self.fly_nofly_grid = data_loaded['fly_nofly_grid']
-        self.fly_nofly_grid_gps = data_loaded['fly_nofly_grid_gps'] # used to translate grid cells to cps coords
-        #self.centroid = data_loaded['centroid'] # centroid of the Polygon area 
-        self.centroid_line_angle = data_loaded['centroid_line_angle'] # angle of the line from home to centroid (radians)
-        self.path_size = np.sum(self.fly_nofly_grid)
+        self.fly_nofly_grid_gps = data_loaded['fly_nofly_grid_gps'] # used to translate grid cells to gps coords
+        if self.path_planning_method == 'tsunami':
+            self.centroid_line_angle = data_loaded['centroid_line_angle'] # angle of the line from home to centroid (radians)
+            self.bf_traversal_cells = data_loaded['bf_traversal_cells']
+            self.path_size = len(self.bf_traversal_cells)
+        elif self.path_planning_method == 'partition_method':
+            self.uav_path = data_loaded['uav_paths'][self.instance_id-1] # dict mapping instance_id-1 to path (list if (y,x) grid cell tuples)
+            self.path_size = len(self.uav_path)
+
+        
+        # self.path_size = np.sum(self.fly_nofly_grid) # we assume that the path size is equal to the number of fly cells in the grid
         self.visited_cells = set() # Set to keep track of which cells have been visited (dont use "{}" because that creates an empty dict, not a set)
         
         # Initialize  variables
@@ -177,19 +213,14 @@ class PX4_Controller(Node):
 
         self.map_projection_initialized = False
 
-        self.path_clear = None # flag to indicate if path is clear (i.e. no other drones are in the way)
-        self.path_clear_response_count = 0 # counter to keep track of how many drones we have checked the path with
-        self.max_neighbor_count = self.max_drone_count - 1 # used for path checking
-        self.estimated_neighbor_count = self.max_neighbor_count # used for path checking
-
-        self.at_path_conflict_alt = False # Flag to indicate if we are at the increased altitude to avoid path conflict.
-                                          # This setup only works if two drones are involved in the path conflict. A solution to handle path conflicts involving an arbitrary number of drones would make the implementation quite a bit more complex.
-
         # Create a main loop timer
         self.main_loop_timer = self.create_timer(CONTROL_LOOP_DT, self.control_loop_callback)
 
-        # Init Tsunami
-        tsunami_online_init(self)
+        # Init Tsunami or Partition Method
+        if self.path_planning_method == 'tsunami':
+            tsunami_online_init(self)
+        elif self.path_planning_method == 'partition_method':
+            partition_method_online_init(self)
 
 
 
@@ -289,7 +320,7 @@ class PX4_Controller(Node):
         self.vehicle_command_publisher.publish(msg)
 
 
-    ##################### METHODS FOR COMMUNICATION #####################
+    ##################### METHODS FOR TSUNAMI COMMUNICATION #####################
 
     # Check All Current Paths setup in short:
         # When we want to check if our path is clear, we call check_all_current_paths()
@@ -304,6 +335,9 @@ class PX4_Controller(Node):
 
     # will set self.path_clear (to something other than None) when it completes (also, self.at_path_conflict_alt will be set to signal if we need to increase altitude or not)
     def check_all_current_paths(self):
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("check_all_current_paths() can only be used with 'tsunami' path planning method.")
+
         self.path_clear = None # reset flag
         self.path_clear_response_count = 0 # reset counter. (counter to keep track of how many drones we have checked the path with)
 
@@ -317,6 +351,8 @@ class PX4_Controller(Node):
         self.check_paths_timeout_timer = self.create_timer(CHECK_ALL_CURRENT_PATHS_TIMEOUT, self.check_all_current_paths_timeout)
 
     def check_all_current_paths_client_callback(self, future):
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("check_all_current_paths_client_callback() can only be used with 'tsunami' path planning method.")
 
         if self.path_clear != None:
             # we have already decided if the path are clear or not! ignore all further responses for this check (path_clear i reset to None at next path check)
@@ -372,6 +408,9 @@ class PX4_Controller(Node):
                         self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is clear
 
     def check_all_current_paths_timeout(self):
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("check_all_current_paths_timeout() can only be used with 'tsunami' path planning method.")
+
         #self.get_logger().warn("Request for all current paths timed out. (might be due to some drones being offline)")
         # we want the timer to be oneshot:
         self.check_paths_timeout_timer.cancel()
@@ -385,6 +424,8 @@ class PX4_Controller(Node):
         self.at_path_conflict_alt = False # reset flag
 
     def check_all_current_paths_extra_time(self):
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("check_all_current_paths_extra_time() can only be used with 'tsunami' path planning method.")
         # we want the timer to be oneshot:
         self.check_paths_extra_timer.cancel()
         #self.get_logger().info("Extra wait time after all estimated drones responded is over.")
@@ -396,6 +437,8 @@ class PX4_Controller(Node):
 
     def check_all_current_paths_server_callback(self, request, response):
         # this is called when another drone requests our current path
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("check_all_current_paths_server_callback() can only be used with 'tsunami' path planning method.")
         response.current_path = Path(
             from_lat=self.vehicle_global_position.lat,
             from_lon=self.vehicle_global_position.lon,
@@ -404,14 +447,12 @@ class PX4_Controller(Node):
         )
         response.at_path_conflict_alt = self.at_path_conflict_alt
         return response
-        
-
-
-
-
+    
 
     def broadcast_visited_cell(self, cell): # Publish Topic (its called broadcast for generilization with the tsunami implimentation for real hardware)
         # Broadcast that we have visited a cell by publishing to a topic
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("broadcast_visited_cell() can only be used with 'tsunami' path planning method.")
         #self.get_logger().info(f"Broadcasting visited cell {cell}")
         msg = Cell()
         msg.x = cell[0]
@@ -421,6 +462,8 @@ class PX4_Controller(Node):
 
     def visited_cell_callback(self, cell): # Topic subscriber callback
         # This is called when we receive a broadcast from another drone that it has visited a cell
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("visited_cell_callback() can only be used with 'tsunami' path planning method.")
         #self.get_logger().info(f"Received visited cell {cell}. Marking as visited locally.")
         self.visited_cells.add((cell.x, cell.y))
 
@@ -428,6 +471,9 @@ class PX4_Controller(Node):
     def sync_visited_cells(self): # service client
         # Request the "visited_cells" from all other drones, and update our own local set accordingly.
         # Calling this method at the start, will allow for late-joining drones to get the current state
+
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("sync_visited_cells() can only be used with 'tsunami' path planning method.")
 
         self.get_logger().info("Syncing visited cells with all other drones...")
 
@@ -444,6 +490,9 @@ class PX4_Controller(Node):
             future.add_done_callback(self.sync_visited_cells_client_future_callback)
 
     def sync_visited_cells_client_future_callback(self, future):
+
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("sync_visited_cells_client_future_callback() can only be used with 'tsunami' path planning method.")
         
         if future.result() is not None:
             response = future.result()
@@ -457,6 +506,8 @@ class PX4_Controller(Node):
 
     def sync_visited_cells_server_callback(self, request, response): # service server callback
         # this is called when another drone requests our visited_cells list
+        if self.path_planning_method != 'tsunami':
+            raise ValueError("sync_visited_cells_server_callback() can only be used with 'tsunami' path planning method.")
         visited_cells_msg = [Cell(x=x, y=y) for x, y in self.visited_cells]
         response.visited_cells = visited_cells_msg
         return response
@@ -488,7 +539,12 @@ class PX4_Controller(Node):
 
         # If PX4 is in offboard mode and map projection is initialized, run the main control loop
         if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
-            tsunami_online_loop(self) 
+            if self.path_planning_method == 'tsunami':
+                tsunami_online_loop(self) 
+            elif self.path_planning_method == 'partition_method':
+                partition_method_online_loop(self)
+            else:
+                raise ValueError(f"Unknown path planning method: {self.path_planning_method}")
 
         # ERROR CHECKING - Make sure control loop processing time does not exceed CONTROL_LOOP_DT:
         end_time = self.get_clock().now()

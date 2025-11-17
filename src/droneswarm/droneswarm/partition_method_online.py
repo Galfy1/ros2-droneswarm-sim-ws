@@ -16,6 +16,7 @@ def partition_method_online_init(self):
     self.flight_path_log = [(float(self.lat_target), float(self.lon_target))]  # list to log the flight path (lat, lon) tuples - for analysis later
     self.flight_complete = False 
     self.land_stabelize_counter = 0
+    self.cell_progress_index = 0  # index to track progress through the path cells
 
 
 
@@ -68,13 +69,22 @@ def set_correct_operating_altitude(self):
     return False # we are at the correct operating altitude now
 
 def update_target_cell(self):
-    pass # TODO
 
+    # make sure we dont go out of bounds:
+    if self.cell_progress_index >= self.path_size:
+        self.get_logger().warning("All cells have been visited.")
+        all_cells_visited(self)
+        return
 
-# TODO 
-# vi har nogle ting i px4_controller.py som skal slås fra hvis vi ikke laver tsunami
-# 	f.eks. det komminukations halløj der..
-# 		e.g. det depender på variabler der er lavet i tsunami_online.py.... (e.g. self.at_path_conflict_alt)… 
+    next_cell = self.uav_path[self.cell_progress_index]
+
+    self.current_target_cell = next_cell
+    self.lat_target, self.lon_target = cell_to_gps(self, next_cell)
+    self.visitied_cells.append(next_cell)
+    self.flight_path_log.append((float(self.lat_target), float(self.lon_target)))
+
+    self.cell_progress_index += 1
+
 
 def partition_method_online_loop(self):
     
