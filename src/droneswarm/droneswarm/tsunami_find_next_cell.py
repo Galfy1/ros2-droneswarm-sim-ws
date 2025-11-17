@@ -13,7 +13,7 @@ dy_8way = [ 0, 1, 1, 1, 0, -1, -1, -1]
 # current_cell: (x,y) tuple
 # visited_cells: set of (x,y) tuples
 # allow_diagonal: bool, if True, diagonal neighbors are considered neighbors
-def find_next_cell_bft(bft_cells, current_cell, visited_cells, allow_diagonal=False):
+def find_next_cell_bft(self, bft_cells, current_cell, visited_cells, allow_diagonal=False):
 
     # Find current location in bft_cells
     if current_cell not in bft_cells:
@@ -84,7 +84,7 @@ def _find_closest_cell(grid, current_cell, visited_cells):
     return closest_cell # closest unvisited cell. returns None if no more valid cells are left
 
 
-def _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, centroid_line_angle: float, 
+def _find_centroid_angle_diff_of_neighbors(self, grid, current_cell, visited_cells, centroid_line_angle: float, 
                                                  directional: str, allow_diagonal_in_path = True):
     #neighbor_with_smallest_angle_diff = None  # angle diff compared to centroid line direction
     x = current_cell[1]
@@ -122,10 +122,10 @@ def _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, ce
 
 # "unidirectional" angle difference (0 to pi). "bidirectional" would be (0 to pi/2). 
 # "bidirectional" does not seem to work very well for the "pure centroid" method (will sometimes do really sharp turns in direction)
-def find_next_cell_centroid(grid, current_cell, visited_cells, centroid_line_angle: float, 
+def find_next_cell_centroid(self, grid, current_cell, visited_cells, centroid_line_angle: float, 
                              directional = "unidirectional", allow_diagonal_in_path = True, angle_offset_rad = 0):
 
-    centroid_angle_diff_of_neighbors = _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, centroid_line_angle+angle_offset_rad,
+    centroid_angle_diff_of_neighbors = _find_centroid_angle_diff_of_neighbors(self, grid, current_cell, visited_cells, centroid_line_angle+angle_offset_rad,
                                                                               directional, allow_diagonal_in_path)
     #print(f"centroid angle: {centroid_angle_diff_of_neighbors}")
 
@@ -144,10 +144,10 @@ def find_next_cell_centroid(grid, current_cell, visited_cells, centroid_line_ang
 
 # "Unidirectional" angle difference (0 to pi). "Bidirectional" would be (0 to pi/2). 
 #  For this hybrid approach, we want "Bidirectional" (the issues of bidirectional is what we are trying to fix by taking into account current direction as well)
-def find_next_cell_hybrid(grid, current_cell, visited_cells, centroid_line_angle: float, current_direction_angle: float, 
+def find_next_cell_hybrid(self, grid, current_cell, visited_cells, centroid_line_angle: float, current_direction_angle: float, 
                            weight_centroid, directional = "bidirectional", allow_diagonal_in_path = True, angle_offset_rad = 0):
 
-    centroid_angle_diff_of_neighbors = _find_centroid_angle_diff_of_neighbors(grid, current_cell, visited_cells, centroid_line_angle+angle_offset_rad, directional, allow_diagonal_in_path)
+    centroid_angle_diff_of_neighbors = _find_centroid_angle_diff_of_neighbors(self, grid, current_cell, visited_cells, centroid_line_angle+angle_offset_rad, directional, allow_diagonal_in_path)
 
     if centroid_angle_diff_of_neighbors: # if list is not empty
 

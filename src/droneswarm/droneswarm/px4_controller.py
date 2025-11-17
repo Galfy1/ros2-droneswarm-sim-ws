@@ -5,6 +5,8 @@ from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand
 from std_msgs.msg import Int32
 import os
 import pickle
+import numpy as np
+import math
 
 from .map_projection import MapProjectionImpl
 from .tsunami_online import tsunami_online_init, tsunami_online_loop, tsunami_does_paths_cross
