@@ -4,6 +4,10 @@ from haversine import haversine, Unit
 
 def great_circle_bearing(lat1, lon1, lat2, lon2):
     # (see https://www.movable-type.co.uk/scripts/latlong.html) ("Bearing" is the angle in Lat/Lon language)
+    lat1 = np.radians(lat1)
+    lon1 = np.radians(lon1)
+    lat2 = np.radians(lat2)
+    lon2 = np.radians(lon2)
     d_lon = lon2 - lon1
     term_1 = np.sin(d_lon) * np.cos(lat2)
     term_2 = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon)
