@@ -72,11 +72,15 @@ class PX4_Controller(Node):
         self.start_flight_delay_s = self.get_parameter('start_flight_delay_s').get_parameter_value().integer_value
         self.path_planning_method = self.get_parameter('path_planning_method').get_parameter_value().string_value
 
+        # Some stuff for sim metric logging (its early here, so sim_start_time is close to node start time as possible)
+        self.sim_start_time_log = int(self.get_clock().now().nanoseconds / 1000) # microseconds
+        self.mission_start_time_log = None
+        self.mission_end_time_log = None
+
         # Namespaces
         self.ns_px4 = "/px4_" + str(self.instance_id) # Namespace for multiple vehicle instances. 
         self.ns_drone = "drone_" + str(self.instance_id) # Namespace we use for communication between drones
         self.ns_launch = self.get_namespace() # Namespace from the launch file
-
 
         # Error check for instance_id
         if not (1 <= self.instance_id <= self.max_drone_count):
@@ -221,6 +225,7 @@ class PX4_Controller(Node):
             tsunami_online_init(self)
         elif self.path_planning_method == 'partition_method':
             partition_method_online_init(self)
+
 
 
 
@@ -540,6 +545,9 @@ class PX4_Controller(Node):
 
         # If PX4 is in offboard mode and map projection is initialized, run the main control loop
         if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.map_projection_initialized:   
+            if self.mission_start_time_log is None:
+                self.mission_start_time_log = int(self.get_clock().now().nanoseconds / 1000) # microseconds
+                
             if self.path_planning_method == 'tsunami':
                 tsunami_online_loop(self) 
             elif self.path_planning_method == 'partition_method':

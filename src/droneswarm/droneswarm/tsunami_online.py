@@ -90,10 +90,15 @@ def all_cells_visited(self):
 
         self.get_logger().info("Reached home position, landing now.")
         self.land() 
-        self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
-        self.flight_complete = True 
 
-    pass # TODO
+        # Log sim results: # TODO husk lige at partitiocal method online skal det samme!!!
+        self.mission_end_time_log = int(self.get_clock().now().nanoseconds / 1000) # microseconds
+        self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
+        self.get_logger().info(f"SIM START TIME (us): {self.sim_start_time_log}")
+        self.get_logger().info(f"MISSION START TIME (us): {self.mission_start_time_log}")
+        self.get_logger().info(f"MISSION END TIME (us): {self.mission_end_time_log}")
+
+        self.flight_complete = True 
 
 
 
