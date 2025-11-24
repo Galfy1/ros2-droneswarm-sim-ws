@@ -4,20 +4,13 @@ import math
 from .tsunami_find_next_cell import find_next_cell_bft, find_next_cell_centroid, find_next_cell_hybrid
 from .great_circle_tools import great_circle_distance, great_circle_bearing
 
-# See the following for helpfull lat/lon/bearing calculations:
-#    https://www.movable-type.co.uk/scripts/latlong.html  # TODO TILFØJ HAVERSINE OG BEARING BEREGNINGER TIL RAPPORTEN
 
-# TODO skriv i rapport at vores version af Tsunami online er mere distributed (forklar det med at vi ikke har en drone pool..)
-# TODO Fra tsunami paper "Notably, due to the properties of the waypoint grid constructed in the offline phase, multiple
-#       points are often equally close to δω . Tsunami explores Ωin order to find the first such minimum point."
-#       Det her er en ting vi har flyttet til offline phase.. men det burde ikke gøre en logisk forskel
 
 # # testy:
 # test_latitude = 37.412833
 # test_longitude = -121.998055
 
 
-# TODO vi skal have lavet det der spline halløj
 
 
 # ADJUSTABLE PARAMETERS
@@ -37,13 +30,6 @@ ENABLE_PATH_CONFLICT_CHECK = True  # if True, the drone will check if its path c
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
 
 ALTITUDE_INCREASE_ON_PATH_CONFLICT = 5.0 # meters, how much to increase altitude if a path conflict is detected with another drone
-
-
-
-# TODO Forklar i rapporten, hvorfor vi har valgt ikke at implimtere spline stuff
-
-# TODO vi kan bruge Qgroundcontrol pathen den tegner, til at se hvor dronen rent faktisk flyver hen
-
 
 
 
@@ -231,8 +217,6 @@ def tsunami_does_paths_cross(path1_from, path1_to, path2_from, path2_to):
 
 
 def update_target_cell(self):
-
-    # TODO ENDNU EN ALTERNATIV STRAT TIL PATH PLANNING. (nem at implimentere), "centroid90" - hvor den i stedet flyver 90 grader til cetrnoid linjen
 
     # Find the next cell in the Breadth First Traversal
     if PATH_PLANNING_METHOD == 'BFT':
