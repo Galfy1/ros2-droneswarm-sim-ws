@@ -15,8 +15,8 @@ from .great_circle_tools import great_circle_distance, great_circle_bearing
 
 # ADJUSTABLE PARAMETERS
 
-PATH_PLANNING_METHOD = 'centroid90_hybrid'  # Options: "BFT", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
-ALLOW_DIAGONAL_PATH_PLANNING = False  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
+PATH_PLANNING_METHOD = 'centroid_hybrid'  # Options: "BFT", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
+ALLOW_DIAGONAL_PATH_PLANNING = True  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
 HYBRID_CENTROID_WEIGHT = 0.6  # only used if PATH_PLANNING_METHOD is hybrid - weight for centroid direction in hybrid path planning (0.0 = only current direction, 1.0 = only centroid direction)
 
 OPERATING_ALTITUDE = -25.0  # meters (remeber, NED coordinates: down is positive)
@@ -93,6 +93,7 @@ def all_cells_visited(self):
 
         # Log sim results: # TODO husk lige at partitiocal method online skal det samme!!!
         self.mission_end_time_log = int(self.get_clock().now().nanoseconds / 1000) # microseconds
+        self.flight_path_log.append((self.home_pos.lat, self.home_pos.lon))  # also add the flight back to home to the log (we need to to later calcute the fill path length)
         self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
         self.get_logger().info(f"SIM START TIME (us): {self.sim_start_time_log}")
         self.get_logger().info(f"MISSION START TIME (us): {self.mission_start_time_log}")
