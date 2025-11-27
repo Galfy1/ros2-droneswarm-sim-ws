@@ -15,7 +15,7 @@ from .great_circle_tools import great_circle_distance, great_circle_bearing
 
 # ADJUSTABLE PARAMETERS
 
-PATH_PLANNING_METHOD = 'centroid180'  # Options: "BFT", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
+PATH_PLANNING_METHOD = 'centroid90_hybrid'  # Options: "BFT", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
 ALLOW_DIAGONAL_PATH_PLANNING = True  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
 HYBRID_CENTROID_WEIGHT = 0.6  # only used if PATH_PLANNING_METHOD is hybrid - weight for centroid direction in hybrid path planning (0.0 = only current direction, 1.0 = only centroid direction)
 
@@ -243,7 +243,8 @@ def update_target_cell(self):
                                          weight_centroid=HYBRID_CENTROID_WEIGHT,
                                          allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING)
         # Update current direction angle
-        self.current_direction_angle = math.atan2(next_cell[0] - current_cell[0], next_cell[1] - current_cell[1]) 
+        if next_cell is not None:
+            self.current_direction_angle = math.atan2(next_cell[0] - current_cell[0], next_cell[1] - current_cell[1]) 
     elif PATH_PLANNING_METHOD == 'centroid90_hybrid':
         current_cell = self.current_target_cell
         next_cell = find_next_cell_hybrid(self, self.fly_nofly_grid, self.current_target_cell, self.visited_cells,
@@ -251,7 +252,8 @@ def update_target_cell(self):
                                          weight_centroid=HYBRID_CENTROID_WEIGHT,
                                          allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING, angle_offset_rad=math.pi/2)
         # Update current direction angle
-        self.current_direction_angle = math.atan2(next_cell[0] - current_cell[0], next_cell[1] - current_cell[1])                
+        if next_cell is not None:
+            self.current_direction_angle = math.atan2(next_cell[0] - current_cell[0], next_cell[1] - current_cell[1])                
 
     if next_cell is not None:
         # New target cell found!
@@ -262,7 +264,7 @@ def update_target_cell(self):
         self.broadcast_visited_cell(next_cell) 
         self.flight_path_log.append((float(self.lat_target), float(self.lon_target))) # log the flight path for later plotting
     else:
-        self.get_logger().info("No valid next cell found.")
+        # self.get_logger().info("No valid next cell found.")
         # this means all cells have been visited
         all_cells_visited(self) 
 
