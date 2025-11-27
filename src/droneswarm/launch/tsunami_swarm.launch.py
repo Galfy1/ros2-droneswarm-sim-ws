@@ -15,7 +15,7 @@ def generate_launch_description():
     # Declare the namespace argument (it can be provided when launching)
     namespace = LaunchConfiguration('namespace')
 
-    MAX_DRONE_COUNT = 3  # REMEMBER TO CHANGE THIS IF YOU ADD MORE DRONES
+    MAX_DRONE_COUNT = 11  # REMEMBER TO CHANGE THIS IF YOU ADD MORE DRONES
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -57,6 +57,110 @@ def generate_launch_description():
             parameters=[
                 {'instance_id': 3}, 
                 {'start_flight_delay_s': 10},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_4',
+            parameters=[
+                {'instance_id': 4}, 
+                {'start_flight_delay_s': 15},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_5',
+            parameters=[
+                {'instance_id': 5}, 
+                {'start_flight_delay_s': 20},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_6',
+            parameters=[
+                {'instance_id': 6}, 
+                {'start_flight_delay_s': 25},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_7',
+            parameters=[
+                {'instance_id': 7}, 
+                {'start_flight_delay_s': 30},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_8',
+            parameters=[
+                {'instance_id': 8}, 
+                {'start_flight_delay_s': 35},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_9',
+            parameters=[
+                {'instance_id': 9}, 
+                {'start_flight_delay_s': 40},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_10',
+            parameters=[
+                {'instance_id': 10}, 
+                {'start_flight_delay_s': 45},
+                {'max_drone_count': MAX_DRONE_COUNT},
+                {'path_planning_method': 'tsunami'},
+                {'use_sim_time': True}
+            ]
+        ),
+        Node(
+            package='droneswarm',
+            namespace=namespace,
+            executable='px4_controller',
+            name='drone_11',
+            parameters=[
+                {'instance_id': 11}, 
+                {'start_flight_delay_s': 50},
                 {'max_drone_count': MAX_DRONE_COUNT},
                 {'path_planning_method': 'tsunami'},
                 {'use_sim_time': True}

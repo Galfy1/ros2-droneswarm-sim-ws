@@ -49,7 +49,7 @@ def all_cells_visited(self):
 
     # Check if we have reached home position:
     dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
-    if dist_to_home < 0.3:  # within 30cm of home position
+    if dist_to_home < 0.5:  # within 50cm of home position
 
         # wait a bit to stabilize before landing:
         if self.land_stabelize_counter < self.one_sec_loop_count*2:
@@ -58,7 +58,15 @@ def all_cells_visited(self):
 
         self.get_logger().info("Reached home position, landing now.")
         self.land() 
+
+        # Log sim results: 
+        self.mission_end_time_log = int(self.get_clock().now().nanoseconds / 1000) # microseconds
+        self.flight_path_log.append((self.home_pos.lat, self.home_pos.lon))  # also add the flight back to home to the log (we need to to later calcute the fill path length)
         self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
+        self.get_logger().info(f"SIM START TIME (us): {self.sim_start_time_log}")
+        self.get_logger().info(f"MISSION START TIME (us): {self.mission_start_time_log}")
+        self.get_logger().info(f"MISSION END TIME (us): {self.mission_end_time_log}")
+
         self.flight_complete = True 
 
 
@@ -91,10 +99,10 @@ def update_target_cell(self):
 
 def partition_method_online_loop(self):
     
-    # Check if all cells have been visited
-    if len(self.visited_cells) >= self.path_size:
-        all_cells_visited(self)
-        return
+    # # Check if all cells have been visited
+    # if len(self.visited_cells) >= self.path_size:
+    #     all_cells_visited(self)
+    #     return
 
     # Make sure we are at the correct operating altitude before continuing
     if set_correct_operating_altitude(self):

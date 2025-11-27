@@ -15,7 +15,7 @@ from .great_circle_tools import great_circle_distance, great_circle_bearing
 
 # ADJUSTABLE PARAMETERS
 
-PATH_PLANNING_METHOD = 'centroid_hybrid'  # Options: "BFT", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
+PATH_PLANNING_METHOD = 'centroid180'  # Options: "BFT", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
 ALLOW_DIAGONAL_PATH_PLANNING = True  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
 HYBRID_CENTROID_WEIGHT = 0.6  # only used if PATH_PLANNING_METHOD is hybrid - weight for centroid direction in hybrid path planning (0.0 = only current direction, 1.0 = only centroid direction)
 
@@ -81,7 +81,7 @@ def all_cells_visited(self):
 
     # Check if we have reached home position:
     dist_to_home = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.home_pos.lat, self.home_pos.lon) # in meters
-    if dist_to_home < 0.3:  # within 30cm of home position
+    if dist_to_home < 0.5:  # within 50cm of home position
 
         # wait a bit to stabilize before landing:
         if self.land_stabelize_counter < self.one_sec_loop_count*2:
@@ -91,7 +91,7 @@ def all_cells_visited(self):
         self.get_logger().info("Reached home position, landing now.")
         self.land() 
 
-        # Log sim results: # TODO husk lige at partitiocal method online skal det samme!!!
+        # Log sim results: 
         self.mission_end_time_log = int(self.get_clock().now().nanoseconds / 1000) # microseconds
         self.flight_path_log.append((self.home_pos.lat, self.home_pos.lon))  # also add the flight back to home to the log (we need to to later calcute the fill path length)
         self.get_logger().info(f"FLIGHT PATH LOG: {self.flight_path_log}")
@@ -326,10 +326,10 @@ def tsunami_online_loop(self):
 
     #self.get_logger().info(f"WTFF: target {self.lat_target}, {self.lon_target}, altitude {self.operating_altitude}, current pos {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}, current alt {self.vehicle_local_position.z}, path_clear {self.path_clear}, at_path_conflict_alt {self.at_path_conflict_alt}, waiting_for_path_check {self.waiting_for_path_check}")
 
-    # Check if all cells have been visited
-    if len(self.visited_cells) >= self.path_size:
-        all_cells_visited(self)
-        return
+    # # Check if all cells have been visited
+    # if len(self.visited_cells) >= self.path_size:
+    #     all_cells_visited(self)
+    #     return
 
     # Make sure we are at the correct operating altitude before continuing (increased if needed to avoid path conflicts)
     if set_correct_operating_altitude(self):
