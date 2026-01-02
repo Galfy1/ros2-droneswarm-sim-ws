@@ -14,22 +14,16 @@ from our_custom_interfaces.srv import SyncVisitedCells, CheckAllCurrentPaths # c
 from our_custom_interfaces.msg import Cell, Path # custom ROS2 interfaces
 from .partition_method_online import partition_method_online_init, partition_method_online_loop
 
-# TODO behold de relevant nedersteående links
-# see https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html for topic interface descriptions
-# se https://docs.px4.io/v1.12/en/simulation/gazebo.html#set-world-location 
-# se https://docs.px4.io/main/en/sim_gazebo_gz/#set-custom-takeoff-location 
-# det ser ud til gps koordinater er defineret i maps filen: https://github.com/PX4/PX4-gazebo-models/blob/main/worlds/baylands.sdf (i bunden af filen)
-    # det kan jeg eventuel bruge til at lave et polygon i mission planner!
-
+# Some potentially usefull links:
+# https://docs.px4.io/main/en/ros2/px4_ros2_control_interface.html
+# https://docs.px4.io/v1.12/en/simulation/gazebo.html#set-world-location 
+# https://docs.px4.io/main/en/sim_gazebo_gz/#set-custom-takeoff-location 
+# https://github.com/PX4/PX4-gazebo-models/blob/main/worlds/baylands.sdf (for baylands gps coords)
 # see https://github.dev/PX4/px4_msgs for message definitions
 #     # https://docs.px4.io/main/en/msg_docs/  
-# TrajectorySetpoint is for setpoints in meters
-# PositionSetpoint seems to be setpoint for gps coordinates ????
-
 # ITS BETTER TO JUST LOOK IN THE ACTUEL px4_msgs PACKAGE IN THE WORKSPACE, THEN YOU KNOW ITS THE ONE ACTUALLY BEING USED
 
 # For Interface Definitions, see: https://docs.ros.org/en/foxy/Concepts/About-ROS-Interfaces.html and https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-Interfaces.html 
-
 # For thread control info, see https://docs.ros.org/en/humble/How-To-Guides/Sync-Vs-Async.html (tldr: dont use synchronous clients in callbacks, deadlock will occur! use call_async() instead)
 #                              https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html (really good read!) 
 
@@ -41,15 +35,8 @@ HOME_POS_TOLERANCE = 1e-4  # degrees # TODO ADJUST
 
 
 # SETTINGS SPECIFIC FOR TSUNAMI INTRA-DRONE COMMUNICATION:
-CHECK_ALL_CURRENT_PATHS_TIMEOUT = 2.0 # seconds # TODO ADJUST
-                                        # TODO, vi kan init med max antal drones. hvis den får responses for det antal, så er den færdig.
-                                                # hvis en eller flere droner ikke svarer, så er det timeouten der bestemmer hvornår den er færdig
-                                                #   hvis man ikke får svar fra en drone x antal gange i træk, så decrase antallen af droner i poolen med 1
-                                                                    # kald variablen noget alla drone_pool_count_estimate eller lignende
-                                                #   hvis man får svar fra en drone, så reset tælleren for den drone.
-                                                #   PROBLEM: hvis vi har decreased antallet af droner i pooolen, så kan en drone der kommer online igen have svært ved at komme med igen (fordi vi kun venter på drone_pool_count_estimate svar)
-                                                #      Potential løsning: efter man har fået drone_pool_count_estimate svar, så venter man lige lidt ekstra, så hvis en drone kommer online igen, så kan den nå at være med.
-                                                # Det kræver også hver drone har et unikt ID, så vi kan se hvem svarer
+# TODO ADJUST TIMINGS
+CHECK_ALL_CURRENT_PATHS_TIMEOUT = 2.0 # seconds 
 CHECK_ALL_CURRENT_PATHS_EXTRA_TIME = 1 # seconds. Extra time to wait after all estimated_neighbor_count responses are recieved (if estimated_neighbor_count < max_neighbor_count)
                                          #          This allows for drones that might come online again to be included. (and estimated_neighbor_count is then adjusted accordingly)
                                          #          (This setup only really makes sense if CHECK_ALL_CURRENT_PATHS_EXTRA_TIME < CHECK_ALL_CURRENT_PATHS_TIMEOUT)
@@ -161,26 +148,6 @@ class PX4_Controller(Node):
                                           # This setup only works if two drones are involved in the path conflict. A solution to handle path conflicts involving an arbitrary number of drones would make the implementation quite a bit more complex.
 
         ############ TSUNAMI COMMUNICATION STUFF END ############ 
-         
-        
-
-        # # Read traversal order and home position from file (created in offline phase)
-        # pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'offline_phase_data.pkl')
-        # with open(pkl_path, 'rb') as fp:
-        #     data_loaded = pickle.load(fp) 
-        # # for item in os.listdir(dir_path):
-        # #     self.get_logger().info(f"Found item in parent dir: {item}")
-        # self.home_cell_from_offline = data_loaded['home_cell']
-        # self.home_gps_from_offline = data_loaded['home_gps']
-        # #self.bf_traversal_gps = data_loaded['bf_traversal_gps']
-        # self.fly_nofly_grid = data_loaded['fly_nofly_grid']
-        # self.fly_nofly_grid_gps = data_loaded['fly_nofly_grid_gps'] # used to translate grid cells to cps coords
-        # #self.centroid = data_loaded['centroid'] # centroid of the Polygon area 
-        # if self.path_planning_method == 'tsunami':
-        #     self.centroid_line_angle = data_loaded['centroid_line_angle'] # angle of the line from home to centroid (radians)
-        #     self.bf_traversal_cells = data_loaded['bf_traversal_cells']
-        # elif self.path_planning_method == 'partition_method':
-        #     pass # TODO 
 
         if self.path_planning_method == 'tsunami':
             pkl_path = os.path.join(os.path.join(os.path.dirname(__file__),'../','../','../','../','share', package_name, 'our_data'), 'tsunami_offline_data.pkl')
@@ -201,7 +168,6 @@ class PX4_Controller(Node):
             self.uav_path = data_loaded['uav_paths'][self.instance_id-1] # dict mapping instance_id-1 to path (list if (y,x) grid cell tuples)
             self.path_size = len(self.uav_path)
 
-        
         # self.path_size = np.sum(self.fly_nofly_grid) # we assume that the path size is equal to the number of fly cells in the grid
         self.visited_cells = set() # Set to keep track of which cells have been visited (dont use "{}" because that creates an empty dict, not a set)
         
@@ -399,7 +365,6 @@ class PX4_Controller(Node):
                 self.check_paths_timeout_timer.cancel() # stop the timeout timer - we already know the path is not clear
             else:
                 #self.get_logger().info(f"No path conflict with another drone: from ({self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}) to ({self.lat_target}, {self.lon_target})")
-                
                 if self.path_clear_response_count == self.estimated_neighbor_count:
                     if self.estimated_neighbor_count != self.max_neighbor_count:
                         # add some extra time to allow for drones that might come online again
@@ -425,7 +390,6 @@ class PX4_Controller(Node):
         self.estimated_neighbor_count -= missing_responses # adjust estimated neighbor count to match reality
 
         self.path_clear = True # after timeout, we assume the path is clear (even though we are not 100% sure) - a drone might have gone offline since last check
-        #self.get_logger().info(f"SUSHI 4")
         self.at_path_conflict_alt = False # reset flag
 
     def check_all_current_paths_extra_time(self):
@@ -517,10 +481,6 @@ class PX4_Controller(Node):
         response.visited_cells = visited_cells_msg
         return response
 
-    # def current_path_incoming_request_callback(self): # DET SKAL VÆRE EN SERVICE I STEDET TODO
-    #     pass
-
-
 
     ##################### MAIN CONTROL LOOP #####################
 
@@ -530,7 +490,6 @@ class PX4_Controller(Node):
 
         self.publish_offboard_control_heartbeat_signal() # must be called at least at 2Hz
 
-        #self.get_logger().info(f"SUSHIIII")
 
         # Wait atleast a second before starting offboard mode and arming (required by PX4)
         wait_loops = self.one_sec_loop_count + self.start_flight_delay_loops
@@ -561,14 +520,6 @@ class PX4_Controller(Node):
         if elapsed_time_s > CONTROL_LOOP_DT:
             self.get_logger().warn(f"Control loop overrun: {elapsed_time_s:.4f} seconds")
             
-
-
-
-
-        
-
-
-
 
 
 def main(args=None) -> None:

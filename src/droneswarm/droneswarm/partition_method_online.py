@@ -30,14 +30,12 @@ def all_cells_visited(self):
     if self.flight_complete:
         return # already completed
 
-
-    # TODO der er ingen path collision chechs mens vi returner hjem...
+    # TODO there are no path collision checks while returning home... this needs to be fixed if used in real-world scenarios.
 
     # Return to home position and land:
-    #self.get_logger().info("Returning to home position and landing.")
     # Calculate yaw to target waypoint (if enabled)
 
-    # TODO hvorfor gør jeg det her: ?? hvis jeg aligvel bare bruger home pos direkte nedenunder??
+    # TODO not sure the following two lines are needed... we use the home pos directly anyway
     self.lat_target = self.home_pos.lat 
     self.lon_target = self.home_pos.lon
 
@@ -98,11 +96,6 @@ def update_target_cell(self):
 
 
 def partition_method_online_loop(self):
-    
-    # # Check if all cells have been visited
-    # if len(self.visited_cells) >= self.path_size:
-    #     all_cells_visited(self)
-    #     return
 
     # Make sure we are at the correct operating altitude before continuing
     if set_correct_operating_altitude(self):
@@ -114,12 +107,10 @@ def partition_method_online_loop(self):
         self.get_logger().info(f"Reached cell: {self.current_target_cell} at lat: {self.lat_target}, lon: {self.lon_target}")
         update_target_cell(self) # Update to next target cell
 
-
     # Calculate yaw to target waypoint (if enabled)
     yaw_rad = 0.0
     if ENABLE_YAW_TURNING:
         yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target) # using the Great-circle Bearing Formula
-
 
     # Publish position setpoint to target waypoint
     self.publish_position_setpoint_global(self.lat_target, self.lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)

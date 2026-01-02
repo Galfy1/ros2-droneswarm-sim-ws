@@ -152,9 +152,6 @@ class OffboardControl(Node):
 
 
 
-
-
-
 def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)

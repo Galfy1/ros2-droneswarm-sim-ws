@@ -6,14 +6,7 @@ from .great_circle_tools import great_circle_distance, great_circle_bearing
 
 
 
-# # testy:
-# test_latitude = 37.412833
-# test_longitude = -121.998055
-
-
-
-
-# ADJUSTABLE PARAMETERS
+# ADJUSTABLE PARAMETERS:
 
 PATH_PLANNING_METHOD = 'centroid180'  # Options: "BFT", "centroid90", "centroid180", "centroid_hybrid", "centroid90_hybrid"
 ALLOW_DIAGONAL_PATH_PLANNING = True  # if True, diagonal neighbors are considered neighbors when finding the next cell to visit. If False, only N/S/E/W neighbors are considered.
@@ -23,9 +16,7 @@ OPERATING_ALTITUDE = -25.0  # meters (remeber, NED coordinates: down is positive
 OPERATING_VELOCITY = 1.0 # m/s # TODO DOES NOT CURRENTLY WORK IN THE PX4 SIM
 ALTITUDE_TOLERENCE = 0.5  # meters, how close we need to be to the operating altitude to consider it "reached"
 ENABLE_YAW_TURNING = True  # our real-world drone only has a 1D gimbal (pitch), so we want to turn the drone to face the direction of travel
-# ENABLE_SPLINE_INTERPOLATION = True # False: Fly directly to each waypoint. less compute, but less smooth flight. True: use spline interpolation to create a smooth path between waypoints.
-#                                     # Tsunami paper calls for some kind of "trajectory" (aka interpolation) to be used. 
-# SPLINE_RESOLUTION = 5  # number of interpolated points between each pair of waypoints. higher = smoother, but more compute. Ignored if ENABLE_SPLINE_INTERPOLATION is False.
+
 ENABLE_PATH_CONFLICT_CHECK = True  # if True, the drone will check if its path conflicts with other drones and adjust altitude if needed
 WAYPOINT_REACHED_TOLERANCE = 1.0  # meters, how close we need to be to a waypoint to consider it "reached"
 
@@ -62,14 +53,12 @@ def all_cells_visited(self):
     if self.flight_complete:
         return # already completed
 
-
-    # TODO der er ingen path collision chechs mens vi returner hjem...
+    # TODO there are no path collision checks while returning home... this needs to be fixed if used in real-world scenarios.
 
     # Return to home position and land:
-    #self.get_logger().info("Returning to home position and landing.")
     # Calculate yaw to target waypoint (if enabled)
 
-    # TODO hvorfor gør jeg det her: ?? hvis jeg aligvel bare bruger home pos direkte nedenunder??
+    # TODO not sure the following two lines are needed... we use the home pos directly anyway
     self.lat_target = self.home_pos.lat 
     self.lon_target = self.home_pos.lon
 
@@ -103,34 +92,10 @@ def all_cells_visited(self):
 
 
 
-# def tsunami_online_init(self):
-#     self.initial_alt_reached = False
-#     self.traversal_index = 0 # main index in traversal order
-#     self.traversal_index_commited = None # index in traversal order which is currently commited to be visited by this drone (i.e. reserved for this drone)
-#     self.get_logger().info("Tsunami online initialized")
-
-
-
-# def all_waypoints_visited(self):
-#     self.get_logger().info("Completed all waypoints.")
-#     pass # TODO
-
-# def commit_to_new_waypoint(self, waypoint_index):
-#     # Locally reserve this waypoint as "currently being visited" by this drone:
-#     self.traversal_index_commited = waypoint_index 
-#     # Set waypoint as "visited" (we do it just as we start flying to it, to tell other drones that it is "reserved" by us):
-#     self.visited_waypoints[waypoint_index] = True # mark waypoint as visited locally
-#     self.broadcast_visited_waypoint(waypoint_index) # mark waypoint as visited for other drones
-
-
-
 def tsunami_does_paths_cross(path1_from, path1_to, path2_from, path2_to):
     # # Check if two line segments (paths) cross each other
     # # Each path is defined by a "from" and "to" GPS coordinate (lat, lon)
     # # Using the algorithm from https://stackoverflow.com/a/1968345 (from "Tricks of the Windows Game Programming Gurus" by André LaMothe, 2002)
-
-
-
 
     """
     Returns (True, (ix, iy)) if lines p0-p1 and p2-p3 intersect, otherwise (False, None).
@@ -167,69 +132,11 @@ def tsunami_does_paths_cross(path1_from, path1_to, path2_from, path2_to):
 
 
 
-
-
-
-
-
-    # def orientation(p, q, r):
-    #     val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1])
-    #     if val == 0:
-    #         return 0  # collinear
-    #     return 1 if val > 0 else 2  # clock or counterclock wise
-
-    # def on_segment(p, q, r):
-    #     if (q[0] <= max(p[0], r[0]) and q[0] >= min(p[0], r[0]) and
-    #             q[1] <= max(p[1], r[1]) and q[1] >= min(p[1], r[1])):
-    #         return True
-    #     return False
-
-    # p1 = (path1_from[0], path1_from[1])
-    # q1 = (path1_to[0], path1_to[1])
-    # p2 = (path2_from[0], path2_from[1])
-    # q2 = (path2_to[0], path2_to[1])
-
-    # o1 = orientation(p1, q1, p2)
-    # o2 = orientation(p1, q1, q2)
-    # o3 = orientation(p2, q2, p1)
-    # o4 = orientation(p2, q2, q1)
-
-    # # General case
-    # if o1 != o2 and o3 != o4:
-    #     return True
-
-    # # Special Cases
-    # # p1, q1 and p2 are collinear and p2 lies on segment p1q1
-    # if o1 == 0 and on_segment(p1, p2, q1):
-    #     return True
-
-    # # p1, q1 and p2 are collinear and q2 lies on segment p1q1
-    # if o2 == 0 and on_segment(p1, q2, q1):
-    #     return True
-
-    # # p2, q2 and p1 are collinear and p1 lies on segment p2q2
-    # if o3 == 0 and on_segment(p2, p1, q2):
-    #     return True
-
-
-
-
-
-
-
-
-
-
-
-
 def update_target_cell(self):
 
     # Find the next cell in the Breadth First Traversal
     if PATH_PLANNING_METHOD == 'BFT':
         next_cell = find_next_cell_bft(self, self.bf_traversal_cells, self.current_target_cell, self.visited_cells, ALLOW_DIAGONAL_PATH_PLANNING)
-    # elif PATH_PLANNING_METHOD == 'centroid': # Pure centroid does not really make sense...
-    #     next_cell = find_next_cell_centroid(self, self.fly_nofly_grid, self.current_target_cell, self.visited_cells,
-    #                                         self.centroid_line_angle, allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING)
     elif PATH_PLANNING_METHOD == 'centroid90':
         next_cell = find_next_cell_centroid(self, self.fly_nofly_grid, self.current_target_cell, self.visited_cells,
                                             self.centroid_line_angle, allow_diagonal_in_path=ALLOW_DIAGONAL_PATH_PLANNING, angle_offset_rad=math.pi/2)
@@ -273,30 +180,6 @@ def cell_to_gps(self, cell):
     return self.fly_nofly_grid_gps[cell[0]][cell[1]]
 
 
-# Will move drone to target waypoint, while taking into acount path conflicts with other drones. It
-# will return:  True if we are still in a path conflict situation (i.e. need to wait)
-#               False if we are not in a path conflict situation or we have reached the target waypoint
-
-# def path_conflict_avoidance(self):
-
-#     if self.path_clear != False:
-#         return False # we are not in a path conflict situation
-
-#     # we now set our altitude (if we need to increase it or not)
-#     operating_altitude = OPERATING_ALTITUDE
-#     if self.at_path_conflict_alt == True:
-#         operating_altitude = OPERATING_ALTITUDE - ALTITUDE_INCREASE_ON_PATH_CONFLICT
-
-#     # make sure we are at the desired altitude
-#     if self.vehicle_local_position.z > operating_altitude + ALTITUDE_TOLERENCE:
-#         self.publish_position_setpoint_global(self.vehicle_global_position.lat, self.vehicle_global_position.lon, operating_altitude, OPERATING_VELOCITY)
-#         return True # signal that we are still increasing altitude
-
-#     # we are at the increased altitude! great! lets continues to the target waypoint at this altitude
-#     self.publish_position_setpoint_global(self.lat_target, self.lon_target, operating_altitude, OPERATING_VELOCITY)
-
-#     return ASD
-
 
 
 def set_correct_operating_altitude(self):
@@ -314,32 +197,7 @@ def set_correct_operating_altitude(self):
     return False # we are at the correct operating altitude now
 
 
-
-
-
 def tsunami_online_loop(self):
-
-    # # Wait until drone have reached initial operating altitude
-    # if self.vehicle_local_position.z > OPERATING_ALTITUDE+ALTITUDE_TOLERENCE and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
-    #     self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY)
-    #     return
-    # else:
-    #     self.initial_alt_reached = True
-
-    #self.get_logger().info(f"WTFF: target {self.lat_target}, {self.lon_target}, altitude {self.operating_altitude}, current pos {self.vehicle_global_position.lat}, {self.vehicle_global_position.lon}, current alt {self.vehicle_local_position.z}, path_clear {self.path_clear}, at_path_conflict_alt {self.at_path_conflict_alt}, waiting_for_path_check {self.waiting_for_path_check}")
-
-    # # Check if all cells have been visited
-    # if len(self.visited_cells) >= self.path_size:
-    #     all_cells_visited(self)
-    #     return
-
-    # Code to demonstrate tsunamis ability to adapt to dying uavs:
-    # if self.instance_id == 1 and len(self.flight_path_log) >= 200:
-    #     all_cells_visited(self)
-    #     return
-    # elif self.instance_id == 2 and len(self.flight_path_log) >= 300:
-    #     all_cells_visited(self)
-    #     return
 
     # Make sure we are at the correct operating altitude before continuing (increased if needed to avoid path conflicts)
     if set_correct_operating_altitude(self):
@@ -377,83 +235,5 @@ def tsunami_online_loop(self):
     if ENABLE_YAW_TURNING:
         yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, self.lat_target, self.lon_target) # using the Great-circle Bearing Formula
 
-
-
-
-    # ISSUE... når vi kommer op i increased alt, så skal den blive der, indtil vi har nået waypointet. 
-
-
-
-    # ISSUE waiting_for_path_check skal sættes false, når vi har fået path_clear svar.. men det bliver den ikke mens vi venter på dronen flyver op til increased alt
-
-    # ISSUE.. DEN SKAL HOLDE PÅ operating_altitude VÆRDIEN. NU FLYVER DEN OP OG SÅ NED MED DET SAMME IGEN MENS DEN FLYVER HEN TIL TARGET.
-
-
     # Publish position setpoint to target waypoint
     self.publish_position_setpoint_global(self.lat_target, self.lon_target, self.operating_altitude, OPERATING_VELOCITY, yaw_rad)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # # Wait until drone have reached  operating altitude
-    # if self.vehicle_local_position.z > OPERATING_ALTITUDE+0.5 and not self.initial_alt_reached:  # (remember NED coordinates: down is positive) (0.5m tolerance)
-    #     self.publish_position_setpoint_global(self.home_pos.lat, self.home_pos.lon, OPERATING_ALTITUDE, OPERATING_VELOCITY)
-    #     return
-    # else:
-    #     self.initial_alt_reached = True
-
-
-    # # Skip to next waypoint if it is already visited (and not the one we are already commited to)
-    # while self.visited_waypoints[self.traversal_index] and not (self.traversal_index == self.traversal_index_commited) :
-    #     if self.traversal_index >= self.traversal_order_size - 1:  # make sure we dont go out of bounds
-    #         all_waypoints_visited(self)
-    #         return
-    #     self.traversal_index += 1
-    
-    # if self.traversal_index != self.traversal_index_commited:
-    #     # We have moved to a new waypoint, so we need to commit to it
-    #     commit_to_new_waypoint(self, self.traversal_index)
-
-    # # Get current target waypoint coordinates
-    # lat_target, lon_target = self.traversal_order_gps[self.traversal_index_commited]
-
-    # # Calculate yaw to target waypoint (if enabled)
-    # yaw_rad = 0.0
-    # if ENABLE_YAW_TURNING:
-    #     yaw_rad = great_circle_bearing(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # using the Great-circle Bearing Formula 
-
-    # # Publish position setpoint to target waypoint
-    # self.publish_position_setpoint_global(lat_target, lon_target, OPERATING_ALTITUDE, OPERATING_VELOCITY, yaw_rad)
-
-    # # Check if we have reached the target waypoint
-    # dist_to_target = great_circle_distance(self.vehicle_global_position.lat, self.vehicle_global_position.lon, lat_target, lon_target) # in meters
-    # if dist_to_target < WAYPOINT_REACHED_TOLERANCE:
-    #     self.get_logger().info(f"Reached waypoint: {self.traversal_index_commited} at lat: {lat_target}, lon: {lon_target}")
-
-    #     self.traversal_index_commited = None # we are no longer committed to this waypoint (we can get a new waypoint next loop)
-    #     if self.traversal_index >= self.traversal_order_size - 1:
-    #         all_waypoints_visited(self)v
-    #         return
-    #     self.traversal_index += 1 # move to next waypoint in traversal order
-

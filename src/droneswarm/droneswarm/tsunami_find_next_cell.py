@@ -31,7 +31,6 @@ def find_next_cell_bft(self, bft_cells, current_cell, visited_cells, allow_diago
                 # neighbor found!
                 return next_cell
 
-
     # No unvisited neighbor is found. Find the closest unvisited cell
     min_dist = float("inf")
     closest_cell = None
@@ -55,8 +54,6 @@ def _is_cell_valid(grid, vis, x, y):
         return False
 
     # If cell is already visited
-    # if (vis[y][x]):
-    #     return False
     if ( (y, x) in vis ): # vis is a set of (y,x) tuples
         return False
     
@@ -91,11 +88,8 @@ def _find_centroid_angle_diff_of_neighbors(self, grid, current_cell, visited_cel
     y = current_cell[0]
     result = []
 
-    if allow_diagonal_in_path == False: # TODO 
+    if allow_diagonal_in_path == False: 
         self.get_logger().warning("allow_diagonal_in_path = False is not implemented for centroid path planning. Using 8-way connectivity regardless.")
-
-    # TODO LIGE NU ER DET KUN 8 WAY. AKA allow_diagonal_in_path GØR INGENTING... IMPLIMENTER 4 WAY OGSÅ?
-    # MÅSKE LAV EN WARNING MED AT DET IKKE GIVER SUPER MEGET MENEING MED allow_diagonal_in_path = false for centroid stuff?
 
     for i in range(8):
         adjx = x + dx_8way[i]
@@ -111,8 +105,6 @@ def _find_centroid_angle_diff_of_neighbors(self, grid, current_cell, visited_cel
             angle_diff_rad = min(angle_diff_rad, 2*math.pi - angle_diff_rad) # ensure in [0, pi]. This step ensures we are measuring the shorter way around the circle (e.g. 350° → 10°).
             if directional == "bidirectional":
                 angle_diff_rad = min(angle_diff_rad, math.pi - angle_diff_rad)   # ensure in [0, pi/2]. Folds any obtuse angle (>90°) back into an acute one, giving [0, pi/2].
-
-            #print(f"Neighbor {i}, angle diff to centroid: {angle_diff_rad}")
 
             result.append((neighbor_cell, angle_diff_rad))
 
