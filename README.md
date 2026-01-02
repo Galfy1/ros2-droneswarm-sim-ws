@@ -36,8 +36,7 @@ ROS2 workspace made for a drone swarm simulation using PX4/ROS2 Multi-Vehicle Si
 1. Run or Launch whatever you want. e.g.:
     - `ros2 launch {package name} {launch file name}`
   
-
-
+_Note: Output data from the offline phases of each CPP approach (a .pkl file) should be placed within the /our_data directory located in the droneswarm workspace in this repo._ 
 
 # About Dependencies
 
